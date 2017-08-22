@@ -1,0 +1,7 @@
+### Classification Wrapper README
+### Angela Zhang
+
+
+Usage:
+	> Assumes you are running from the pycode directory, so please cd into pycode directory when calling the wrapper
+	> First argument given should be the path relative to the pycode directory to the folder containing the library files
