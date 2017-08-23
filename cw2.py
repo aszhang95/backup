@@ -6,12 +6,13 @@ import numpy as np
 
 ### wrapper doesn't dangerously delete files, now only dependent on correct location of where it 
 ### it is run relative to ./bin/smashmatch
-### atexit not tested; also potentially not safe
 
 
 
-# Global Variables:
-prefix = ""  
+# Global Variables: (ensures safe R/W of smashmatch)
+global prefix
+prefix = str(uuid.uuid4())
+# prefix = "resx" # for testing purposes only
 
 
 # necessary helper global function
@@ -102,8 +103,7 @@ class SupervisedModelBase:
     
     ### USAGE ###
     Assumes you are within directory one level lower than data_smashing_ 
-    (and specifically bin) where tmp files can be written
-    Also assumes correct modules have been loaded
+    (and specifically bin) where temporary files can be written
 
     Attributes:
         classes (np.1Darray): class labels fitted into the model; also column headers for
@@ -112,21 +112,12 @@ class SupervisedModelBase:
     
     def __init__(self): # lib_files = list of library file names or LibFile Objects
         self.classes = [] 
-        self.__lib_files = None
+        self.__lib_files = []
         self.__lib_command = " -F "
         self.__command = '../bin/smashmatch'
         self.__input_fh = None
+        self.__input = None
         self.__mapper = {}
-        # self.__prefix = str(uuid.uuid4())
-        self.prefix = "resx"
-        prefix = self.prefix
-
-
-    @property
-    def classes(self):
-        if len(self.classes) == 0:
-            print("Warning: this instance has not been fit.") # apparently can't print in a getter?
-        return self.classes
 
 
     def fit(self, X, y): # not sure what to do with kwargs or the classes/sample_weight params
@@ -142,8 +133,9 @@ class SupervisedModelBase:
           (None) modifies object in place
         '''
         
-        # clean up old library files before running
-        if len(self.__lib_files) != 0:
+        # delete old library files before running (would only be true after first run)
+        len_libs = len(self.__lib_files)
+        if len_libs != 0:
             self.clean_libs()
 
         self.__lib_files = self.make_libs(X, y)
@@ -204,6 +196,7 @@ class SupervisedModelBase:
             (string) filename of the input_file as a tempfile
         '''
         
+        self.__input = array
         rows = array.tolist()
         self.__input_fh = tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=False)    
         wr = csv.writer(self.__input_fh, delimiter=" ")
@@ -224,51 +217,77 @@ class SupervisedModelBase:
                 when prob is True compute looks for output probabilities
                 when prob is False compute looks for output classes
         Outputs - 
-            (boolean) whether the output file has been successfully created
+            (boolean) whether smashmatch results corresponding to X were created/exist
         '''
 
-        input_name_command = " -f " + self.read_in_nda(X)
-        if input_length is not None:
-            input_length_command = " -x " + str(input_length)
-        if num_repeats is not None:
-            num_repeats_command = " -n " + str(num_repeats)
+        if self.should_calculate(X): # dataset was not the same as before or first run
+            input_name_command = " -f " + self.read_in_nda(X)
+            if input_length is not None:
+                input_length_command = " -x " + str(input_length)
+            if num_repeats is not None:
+                num_repeats_command = " -n " + str(num_repeats)
 
-        self.__command += (input_name_command + self.__lib_command + "-T symbolic -D row ")
-        self.__command += "-L true true true -o " + self.__prefix + " -d false"
+            self.__command += (input_name_command + self.__lib_command + "-T symbolic -D row ")
+            self.__command += "-L true true true -o " + prefix + " -d false"
 
-        if input_length is not None:
-            self.__command += input_length_command
-        if num_repeats is not None:
-            self.__command += num_repeats_command
+            if input_length is not None:
+                self.__command += input_length_command
+            if num_repeats is not None:
+                self.__command += num_repeats_command
 
-        #../bin/smashmatch  -f TEST0 -F LIB0 LIB1 LIB2 -T symbolic -D row -L true true true -o resx -n 2
-        print("Requested: {}".format(self.__command))
-        # sp.Popen(self.__command, shell=True).wait()
-        # if prob:
-        #     while not os.path.isfile(self.__prefix + "_prob"):
-        #         print("Waiting for smashing algorithm to complete...")
-        #         time.sleep(20)
-        # else:
-        #     while not os.path.isfile(self.prefix + "_class"):
-        #     print("Waiting for smashing algorithm to complete...")
-        #     time.sleep(20)   
-        
-        if (self.__prefix + "_prob" not in os.listdir(os.getcwd()) 
-            or self.__prefix + "_class" not in os.listdir(os.getcwd())):
-            return False
-        else:
+            # (../bin/smashmatch  -f TEST0 -F LIB0 LIB1 LIB2 
+            # -T symbolic -D row -L true true true -o resx -n 2)
+            print("Requested: {}".format(self.__command))
+            sp.Popen(self.__command, shell=True).wait()
+            if prob:
+                while not os.path.isfile(prefix + "_prob"):
+                    print("Waiting for smashing algorithm to complete...")
+                    time.sleep(20)
+            else:
+                while not os.path.isfile(prefix + "_class"):
+                    print("Waiting for smashing algorithm to complete...")
+                    time.sleep(20)   
+            
+            if prefix + "_prob" not in os.listdir(os.getcwd()) or \
+            prefix + "_class" not in os.listdir(os.getcwd()):
+                return False
+            else: # successfully ran smashmatch to get results
+                os.unlink(self.__input_fh.name)
+                self.__input_fh = None
+                return True
+        else: # dataset was the same as before, use existing result files
             return True
 
 
-    def clear_results(self):
+    def should_calculate(self, X_):
         '''
-        Clears result files from last run of any predict method; no I/O
+        Clears result files of smashmatch if the previous dataset is different than the current
+        or if this is the first run of smashmatch (in which case self.__input would be None)
+
+        Inputs - 
+            X_ (nda): input time series
+
+        Returns - 
+            True if results were cleared and smashmatch needs to be run again, False if
+                first run or if dataset is the same
+            Or will exit abruptly if unexpected 4 case arises
         '''
 
-        if (self.__prefix + "_prob" in os.listdir(os.getcwd()) 
-            or self.__prefix + "_class" in os.listdir(os.getcwd())):
-            sp.Popen("rm " + self.__prefix + "*", shell=True)
-            self.__lib_command = " -F "
+        # because using a np compare, have to catch self.__input = None first
+        # will happen on first try
+        if self.__input is None:
+            return True
+        # don't clear results if same dataset: don't run again
+        elif np.array_equal(X_, self.input): 
+            return False
+        elif prefix + "_prob" in os.listdir(os.getcwd()) and \
+        prefix + "_class" in os.listdir(os.getcwd()): # implied self.__input != X_
+            sp.Popen("rm " + prefix + "*", shell=True).wait()
+            self.__command = '../bin/smashmatch'
+            return True
+        else: # should only be one of the 3 above cases, but want to be explicit
+        # surprise could happen if only either prefix_prob or prefix_class exist
+            sys.exit(1)
 
 
     def predict(self, x, il=None, nr=None):
@@ -284,15 +303,10 @@ class SupervisedModelBase:
             np.nda of shape num_timeseries, 1 if successful or None if not successful
         '''
 
-        # if running predict a second time, need to clean 
-        # self.clear_results()
-
-        if self.compute(x, False, il, nr):
-            with open(self.__prefix + '_class') as f:
+        compute_res = self.compute(x, False, il, nr)
+        if compute_res and prefix + "_class" in os.listdir(os.getcwd()):
+            with open(prefix + '_class') as f:
                 raw = f.read().splitlines()
-            print(raw)
-            os.unlink(self.__input_fh.name)
-            self.__input_fh = None
             formatted = []
             for result in raw:
                 formatted.append(self.__mapper[int(result)].label) # should append labels in order
@@ -300,7 +314,7 @@ class SupervisedModelBase:
 
             return np.reshape(y, (-1, 1))
         else:
-            print("Error processing command. Please try again.")
+            print("Error processing command: FNF. Please try again.")
             return None
 
 
@@ -319,17 +333,13 @@ class SupervisedModelBase:
                 where n = num_timeseries and m = num_classes
                 probabilities are listed in an order corresponding to the classes attribute
         '''
-        
-        # if running predict a second time, need to clean 
-        # self.clear_results()
 
-        if self.compute(x, True, il, nr):
-            probs = np.loadtxt(fname=(self.__prefix + "_prob"), dtype=float)
-            os.unlink(self.__input_fh.name)
-            self.__input_fh = None
+        compute_res = self.compute(x, True, il, nr)
+        if compute_res and prefix + "_prob" in os.listdir(os.getcwd()):
+            probs = np.loadtxt(fname=(prefix + "_prob"), dtype=float)
             return probs
         else:
-            print("Error processing command. Please try again.")
+            print("Error processing command: FNF. Please try again.")
             return None
 
 
@@ -353,16 +363,20 @@ class SupervisedModelBase:
         if probs is not None:
             return np.log(probs)
         else:
-            print("Error processing command. Please try again.")
             return None    
 
 
     def clean_libs(self):
         '''
-        Removes tempfiles created by reading and writing library files; no I/O
+        Removes tempfiles created by reading and writing library files and clears
+        relevant internally stored variables; no I/O
         '''    
+        
         for lib_file in self.__lib_files:
             lib_file.delete_file()
+        self.classes = [] 
+        self.__lib_files = []
+        self.__lib_command = " -F "
 
 
 
@@ -370,8 +384,10 @@ def cleanup():
     '''
     Clean up library files before closing the script; no I/O
     '''
+    
     sp.Popen("rm tmp*", shell=True).wait()
-    sp.Popen("rm " + prefix + "*", shell=True).wait()
+    if prefix != "" and prefix is not None:
+        sp.Popen("rm " + prefix + "*", shell=True).wait()
 
 
 
@@ -382,9 +398,9 @@ def cleanup():
 #     sp.Popen("module load python", shell=True).wait()
 #     sp.Popen("module load python", shell=True).wait()
 #     # assumes you're one directory under the directory containing bin/smashmatch
-#     os.chdir("../zbase", shell=true)
+#     os.chdir("../zbase")
 #     sp.Popen("make -f Makefile", shell=True).wait()
-#     os.chdir("..", shell=true)
+#     os.chdir("..")
 #     sp.Popen("make -f Makefile", shell=True).wait()
 #     os.chdir(launch_path)
     
