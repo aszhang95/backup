@@ -13,6 +13,8 @@ import numpy as np
 global prefix
 prefix = str(uuid.uuid4())
 # prefix = "resx" # for testing purposes only
+libs = ['LIB0', 'LIB1', 'LIB2']
+labs = [0, 1, 2]
 
 
 # necessary helper global function
@@ -165,7 +167,7 @@ class SupervisedModelBase:
         
         # delete old library files before running (would only be true after first run)
         len_libs = len(self.__lib_files)
-        if len_libs != 0:
+        if len_libs > 0:
             self.clean_libs()
 
         self.__lib_files = self.make_libs(X, y)
@@ -252,8 +254,8 @@ class SupervisedModelBase:
 
         ran_smashmatch = False
         
-        if isinstance(X_, str) and should_calculate_file(X_):
-            input_name_command = " -f " + X_
+        if isinstance(X, str) and self.should_calculate_file(X):
+            input_name_command = " -f " + X
             run_smashmatch = True
         elif self.should_calculate(X): # dataset was not the same as before or first run
             input_name_command = " -f " + self.read_in_nda(X)
@@ -440,9 +442,10 @@ class SupervisedModelBase:
         Removes tempfiles created by reading and writing library files and clears
         relevant internally stored variables; no I/O
         '''    
-        
-        for lib_file in self.__lib_files:
-            lib_file.delete_file()
+        lib_type = self.__lib_files[i].file_handler
+        if not isinstance(lib_type, str):
+            for lib_file in self.__lib_files:
+                lib_file.delete_file()
         self.classes = [] 
         self.__lib_files = []
         self.lib_command = " -F "

@@ -1,0 +1,165 @@
+import pandas as pd
+import numpy as np
+from numpy import nan
+import tempfile, csv, uuid, os, ntpath
+
+
+
+# Global Variables: (ensures safe R/W of smashmatch)
+global prefix
+prefix = str(uuid.uuid4())
+# prefix = "resx" # for testing purposes only
+
+
+# necessary global function
+def path_leaf(path):
+    '''
+    Returns filename from a given path/to/file
+    Taken entirely from Lauritz V. Thaulow on https://stackoverflow.com/questions/8384737
+
+    Input -
+        path (string): path/to/the/file
+
+    Returns -
+        filename (string)
+    '''
+
+    head, tail = ntpath.split(path)
+    return tail or ntpath.basename(head)
+
+
+
+class LibFile:
+    '''
+    Helper class to store library file information to interface with file-I/O data smashing code
+
+    Attributes -
+        class (int):  label given to the class by smashmatch based on the order in
+            which it was processed
+        label (int): actual label assigned by input
+        file_handler (tempfile.NamedTemporaryFile): temporary file object reference for R/W
+            interfacing with smashmatch
+        filename (string): name of the temporary file within the cwd of a library file
+    '''
+
+    def __init__(self, class_, label_, tfhandler):
+        self.class_name = class_
+        self.label = label_
+        self.file_handler = tfhandler
+        self.filename = path_leaf(self.file_handler.name)
+
+
+    def delete_file(self):
+        '''
+        Deletes temporary library file created from fit function; no I/O
+        '''
+
+        os.unlink(self.file_handler.name)
+
+
+
+def read_in_ragged(filename, delimiter_, datatype=float):
+    '''
+    Reads in file with mixed column lengths (timeseries of different length)
+
+    Inputs -
+        file (string): path to file
+        delimiter (char): value delimiter
+        nrows (int): number of timeseries (optional, but would speed up process)
+        max_cols (int): length of max (optional, but would speed up process)
+    Outputs -
+        pandas.DataFrame with missing values as NaN
+    '''
+
+    data = []
+    max_col_len = 0
+    with open(filename, 'r') as f:
+        for line in f:
+            row = line.rstrip('\n').split(delimiter_)
+            row_len = len(row)
+            if row_len > max_col_len:
+                max_col_len = row_len
+            data.append(row)
+    rv = pd.DataFrame(data, columns=range(max_col_len), dtype=datatype)
+    rv.fillna(value=nan, inplace=True)
+    return rv
+
+
+
+def write_out_ragged(df, directory):
+    '''
+    Writes out pd.DataFrame to tempfile
+
+    Inputs -
+        df (pd.DataFrame)
+
+    Outputs -
+        out (tempfile)
+    '''
+    assert(isinstance(df, pd.DataFrame)), "Error: argument df is not type pandas.DataFrame"
+    assert(os.path.exists(directory)), "Error: output path does not exist!"
+
+    data = df.values.tolist()
+    to_write = []
+    for row in data:
+        to_write.append([x for x in row if not pd.isnull(x)])
+    out = tempfile.NamedTemporaryFile(dir=directory, delete=False)
+    wr = csv.writer(out, delimiter=" ")
+    wr.writerows(to_write)
+    out.close()
+    return out
+
+
+
+def condense(mappings):
+    '''
+    Creates X, y necessary for smashmatch following sklearn.SVM conventions for the fit method
+
+    Input -
+        mappings(list of tuples of (df, label))
+    Output -
+        X (examples of each class, each example is a row)
+        y (df with corresponding of n x 1 with n being the number of timeseries in X)
+    '''
+
+    labelled = []
+    for mapping in mappings:
+        class_ = mapping[1]
+        nrows = mapping[0].shape[0]
+        class_col = np.asarray([class_]*nrows)
+        mapping[0].insert(0, 'type', class_col)
+        labelled.append(mapping[0])
+
+    combined = pd.concat(labelled)
+    y_ = combined.pop("type")
+    return combined, y_
+
+
+
+def make_libs_df(X, y):
+    '''
+    Helper function to write class labels & examples to files usable by smashmatch,
+    but also compatible with pandas DataFrames
+
+    Inputs -
+        X (pd.DataFrame): timeseries examples of each class
+        y (pd.Dataframe): labels for each type of timeseries
+    Returns -
+        rv (list of LibFile objects)
+    '''
+
+    X.insert(0, "level", y)
+    X.sort_values("level")
+
+    labels = y.unique().tolist()
+    class_num = 0
+
+    lib_files = []
+    for label_ in labels:
+        df = X.loc[X.level == label_]
+        df.drop("level", 1)
+        fh = write_out_ragged(df, os.getcwd()) # change to the temp directory created
+        lib_files.append(LibFile(class_num, label_, fh))
+        class_num += 1
+
+    return lib_files
