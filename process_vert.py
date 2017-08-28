@@ -6,7 +6,7 @@ import pandas as pd
 from numpy import nan
 import numpy as np
 
-def read_in_vert(dir, label=None, bound=None, lb=None, ub=None, dtype_=float):
+def read_in_vert(directory, label=None, bound=None, lb=None, ub=None, dtype_=float):
     '''
     Converts folder of libraries with vertical orientation to pd.DataFrame for
         use with SMB and smashmatch - takes all the files within the folder to be
@@ -27,17 +27,51 @@ def read_in_vert(dir, label=None, bound=None, lb=None, ub=None, dtype_=float):
             pd.DataFrame if no bound given (to feed into SMB.condense())
     '''
 
-    assert os.path.isdir(dir), "Please provide valid directory to combine"
     if bound is not None:
         assert (lb is not None and ub is not None), "Error: cannot specify bound\
         without specifying quantization"
-    total = []
-    max_cols = 0
-    if bound is not None:
-        for filename in os.listdir(dir):
-            row = []
-            with open(dir+"/"+filename, "r") as f:
-                col_counter = 0
+    if os.path.isdir(directory):
+        total = []
+        max_cols = 0
+        if bound is not None:
+            for filename in os.listdir(directory):
+                row = []
+                with open(directory+"/"+filename, "r") as f:
+                    col_counter = 0
+                    for line in f:
+                        val = float(line.rstrip())
+                        if val < bound:
+                            row.append(lb)
+                        elif val > bound:
+                            row.append(ub)
+                        else:
+                            row.append(val)
+                        col_counter += 1
+                if col_counter > max_cols:
+                    max_cols = col_counter
+                total.append(row)
+        else:
+            for filename in os.listdir(directory):
+                row = []
+                with open(directory+"/"+filename, "r") as f:
+                    col_counter = 0
+                    for line in f:
+                        row.append(line.strip())
+                        col_counter += 1
+                if col_counter > max_cols:
+                    max_cols = col_counter
+                total.append(row)
+        rv = pd.DataFrame(total, columns=range(max_cols), dtype=dtype_)
+        rv.fillna(value=nan, inplace=True)
+        if label is not None:
+            return (rv, label)
+        else:
+            return rv
+    else: # path to a singular file
+        row = []
+        col_counter = 0
+        if bound is not None:
+            with open(directory+"/"+filename, "r") as f:
                 for line in f:
                     val = float(line.rstrip())
                     if val < bound:
@@ -47,25 +81,13 @@ def read_in_vert(dir, label=None, bound=None, lb=None, ub=None, dtype_=float):
                     else:
                         row.append(val)
                     col_counter += 1
-            if col_counter > max_cols:
-                max_cols = col_counter
-            total.append(row)
-    else:
-        for filename in os.listdir(dir):
-            row = []
-            with open(dir+"/"+filename, "r") as f:
-                col_counter = 0
+        else:
+            with open(directory+"/"+filename, "r") as f:
                 for line in f:
                     row.append(line.strip())
                     col_counter += 1
-            if col_counter > max_cols:
-                max_cols = col_counter
-            total.append(row)
-    rv = pd.DataFrame(total, columns=range(max_cols), dtype=dtype_)
-    rv.fillna(value=nan, inplace=True)
-    if label is not None:
-        return (rv, label)
-    else:
+        rv = pd.DataFrame(row, columns=range(col_counter), dtype=dtype_)
+        rv.fillna(value=nan, inplace=True)
         return rv
 
 

@@ -61,14 +61,15 @@ class SupervisedModelBase:
 
 
     ### helper functions for library files:
-    def read_in_vert(self, dir, label=None, bound=None, lb=None, ub=None, dtype_=float):
+    def read_in_vert(self, directory, label=None, bound=None, \
+    lb=None, ub=None, dtype_=float):
         '''
         Converts folder of libraries with vertical orientation to pd.DataFrame for
             use with SMB and smashmatch - takes all the files within the folder to be
             row examples of a class
 
         Inputs -
-            directory (string): path to file
+            directory (string): path to a directory or file (if file, do not use label)
             delimiter (char): value delimiter
             datatype (type): type of values read into pd.DataFrame
             bound (int or float)
@@ -78,21 +79,55 @@ class SupervisedModelBase:
                 greater than bound (must have bound to have lb and ub)
 
         Outputs -
-            tuple of pandas.DataFrame with missing values as NaN and label or just
-                pd.DataFrame if no bound given (to feed into SMB.condense())
+            tuple of pandas.DataFrame with missing values as NaN and label
+            (to feed into SMB.condense()) or just pd.DataFrame if no bound given
         '''
 
-        assert os.path.isdir(dir), "Please provide valid directory to combine"
         if bound is not None:
             assert (lb is not None and ub is not None), "Error: cannot specify bound\
             without specifying quantization"
-        total = []
-        max_cols = 0
-        if bound is not None:
-            for filename in os.listdir(dir):
-                row = []
-                with open(dir+"/"+filename, "r") as f:
-                    col_counter = 0
+        if os.path.isdir(directory):
+            total = []
+            max_cols = 0
+            if bound is not None:
+                for filename in os.listdir(directory):
+                    row = []
+                    with open(directory+"/"+filename, "r") as f:
+                        col_counter = 0
+                        for line in f:
+                            val = float(line.rstrip())
+                            if val < bound:
+                                row.append(lb)
+                            elif val > bound:
+                                row.append(ub)
+                            else:
+                                row.append(val)
+                            col_counter += 1
+                    if col_counter > max_cols:
+                        max_cols = col_counter
+                    total.append(row)
+            else:
+                for filename in os.listdir(directory):
+                    row = []
+                    with open(directory+"/"+filename, "r") as f:
+                        col_counter = 0
+                        for line in f:
+                            row.append(line.strip())
+                            col_counter += 1
+                    if col_counter > max_cols:
+                        max_cols = col_counter
+                    total.append(row)
+            rv = pd.DataFrame(total, columns=range(max_cols), dtype=dtype_)
+            rv.fillna(value=nan, inplace=True)
+            if label is not None:
+                return (rv, label)
+            else:
+                return rv
+        else: # path to a singular file
+            row = []
+            col_counter = 0
+            if bound is not None:
+                with open(directory, "r") as f:
                     for line in f:
                         val = float(line.rstrip())
                         if val < bound:
@@ -101,32 +136,18 @@ class SupervisedModelBase:
                             row.append(ub)
                         else:
                             row.append(val)
-                        col_counter += 1
-                if col_counter > max_cols:
-                    max_cols = col_counter
-                total.append(row)
-        else:
-            for filename in os.listdir(dir):
-                row = []
-                with open(dir+"/"+filename, "r") as f:
-                    col_counter = 0
+            else:
+                with open(directory, "r") as f:
                     for line in f:
                         row.append(line.strip())
-                        col_counter += 1
-                if col_counter > max_cols:
-                    max_cols = col_counter
-                total.append(row)
-        rv = pd.DataFrame(total, columns=range(max_cols), dtype=dtype_)
-        rv.fillna(value=nan, inplace=True)
-        if label is not None:
-            return (rv, label)
-        else:
+            rv = pd.DataFrame([row], dtype=dtype_)
             return rv
 
 
     def read_in_ragged(self, filename, delimiter_, datatype=int, bound=None, lb=None, up=None):
         '''
         Reads in file with mixed column lengths (timeseries of different length)
+        (direction = horizontal)
 
         Inputs -
             file (string): path to file
@@ -152,7 +173,7 @@ class SupervisedModelBase:
             if bound is not None:
                 for line in f:
                     formatted_row = []
-                    row = line.strip('\n').split(delimiter_)
+                    row = line.strip().split(delimiter_)
                     if row[-1] == "":
                         row = row[:-1]
                     row_len = len(row)
@@ -170,7 +191,7 @@ class SupervisedModelBase:
             else:
                 for line in f:
                     formatted_row = []
-                    row = line.strip('\n').split(delimiter_)
+                    row = line.strip().split(delimiter_)
                     if row[-1] == "":
                         row = row[:-1]
                     row_len = len(row)
@@ -389,7 +410,7 @@ class SupervisedModelBase:
 
             # (../bin/smashmatch  -f TEST0 -F LIB0 LIB1 LIB2
             # -T symbolic -D row -L true true true -o resx -n 2)
-            print("Requested: {}".format(self.command))
+            # print("Requested: {}".format(self.command))
 
             os.chdir(self.file_dir)
             sp.Popen(self.command, shell=True)
@@ -452,7 +473,7 @@ class SupervisedModelBase:
             Or will exit abruptly if unexpected 4 case arises
         '''
 
-        pdb.set_trace()
+        # pdb.set_trace()
         # because using a np compare, have to catch self.input = None first
         # will happen on first try
         if self.input is None:
@@ -474,7 +495,7 @@ class SupervisedModelBase:
             else: # should only be one of the 3 above cases, but want to be explicit
             # surprise could happen if only either prefix_prob or prefix_class exist
                 # recalculating seems like best option here if the files don't exist
-                print("Entered surprise state! Spoopy.")
+                # print("Entered surprise state! Spoopy.")
                 self.command = self.bin_path
                 return True
         elif isinstance(X_, pd.DataFrame):
@@ -488,7 +509,7 @@ class SupervisedModelBase:
                 self.reset_input()
                 return True
             else:
-                print("Entered surprise state! Spoopy.")
+                # print("Entered surprise state! Spoopy.")
                 self.command = self.bin_path
                 return True
         else:
