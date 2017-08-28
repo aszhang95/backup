@@ -1,0 +1,116 @@
+SMB.read_in_vert(directory, label=None, bound=None, \
+lb=None, ub=None, dtype_=float):
+    '''
+    Converts folder of libraries with vertical orientation to pd.DataFrame for
+        use with SMB and smashmatch - takes all the files within the folder to be
+        row examples of a class
+
+    Inputs -
+        directory (string): path to a directory or file (if file, do not use label)
+        bound (int or float)
+        lb (int or float): value to reassign input values if they are
+            less than bound (must have bound to have lb and ub)
+        ub (int or float): value to reassign input values if they are
+            greater than bound (must have bound to have lb and ub)
+        dtype_ (type): type of values read into pd.DataFrame
+
+    Outputs -
+        tuple of pandas.DataFrame with missing values as NaN and label
+        (to feed into SMB.condense()) or just pd.DataFrame if no bound given
+    '''
+
+
+SMB.read_in_ragged(filename, delimiter_, datatype=int, bound=None, lb=None, up=None):
+    '''
+    Reads in file with mixed column lengths (timeseries of different length)
+    (direction = horizontal)
+
+    Inputs -
+        filename (string): path to file
+        delimiter (char): value delimiter
+        datatype (type): type of values read into pd.DataFrame
+        bound (int or float)
+        lb (int or float): value to reassign input values if they are
+            less than bound (must have bound to have lb and ub)
+        ub (int or float): value to reassign input values if they are
+            greater than bound (must have bound to have lb and ub)
+
+    Outputs -
+        tuple of pandas.DataFrame with missing values as NaN and label or just
+            pd.DataFrame if no bound given (to feed into SMB.condense())
+    '''
+
+
+SMB.condense(mappings):
+    '''
+    Creates X, y necessary for smashmatch following sklearn.SVM conventions
+    for the fit method
+
+    Input -
+        mappings(list of tuples of (df, label))
+    Output -
+        X (examples of each class, each example is a row)
+        y (df with corresponding of n x 1 with n being the number of timeseries in X)
+    '''
+
+
+SMB.fit(X, y):
+    '''
+    Reads in appropriate data/labels -> library class files
+    to be used by smashmatch
+
+    Inputs -
+        X (np.nda or pandas.DataFrame): class examples
+        y (np.1da or pandas.Series): class labels
+
+    Returns -
+      (None) modifies object in place
+    '''
+
+
+SMB.predict(x, il=None, nr=None):
+    '''
+    Classifies each of the input time series (X) using smashmatch and the given parameters
+
+    Inputs -
+        x (numpy.nda or pandas.DataFrame): input data (each row is a different timeseries)
+        il (int): length of the input timeseries to use (smashmatch param)
+        nr (int): number of times to run smashmatch (for refining results) (smashmatch param)
+
+    Outputs -
+        np.nda of shape (num_timeseries, 1) if successful or None if not successful
+    '''
+
+
+SMB.predict_proba(x, il=None, nr=None):
+    '''
+    Predicts percentage probability for the input time series to classify as any
+    of the possible classes fitted
+
+    Inputs -
+        x (numpy.nda or pandas.DataFrame): input data (each row is a different timeseries)
+        il (int): length of the input timeseries to use (smashmatch param)
+        nr (int): number of times to run smashmatch (for refining results) (smashmatch param)
+
+    Outputs -
+        np.nda of shape n x m if successful or None if not successful
+            where n = num_timeseries and m = num_classes
+            probabilities are listed in an order corresponding to the classes attribute
+    '''
+
+
+SMB.predict_log_proba(x, il=None, nr=None):
+    '''
+    Predicts logarithmic probability for the input time series to classify as any
+    of the possible classes fitted
+
+    Inputs -
+        x (numpy.nda or pandas.DataFrame): input data (each row is a different timeseries)
+        il (int): length of the input timeseries to use
+        nr (int): number of times to run smashmatch (for refining results)
+
+    Outputs -
+        np.nda of shape n x m if successful or None if not successful
+            where n = num_timeseries and m = num_classes
+            probabilities are listed in an order corresponding to the classes attribute
+    '''

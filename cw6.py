@@ -48,15 +48,14 @@ class SupervisedModelBase:
     '''
 
     def __init__(self, bin_path_): # lib_files = list of library file names or LibFile Objects
-        self.bin_path = bin_path_
+        self.__bin_path = bin_path_
         sp.Popen("mkdir "+ temp_dir, shell=True).wait()
-        self.file_dir = cwd + "/" + temp_dir
-        # os.chdir(self.file_dir) # move into the directory for safer functionality or stay in cwd?
+        self.__file_dir = cwd + "/" + temp_dir
         self.classes = []
         self.__lib_files = [] # list of LibFile objects
-        self.lib_command = " -F "
-        self.command = self.bin_path
-        self.input = None
+        self.__lib_command = " -F "
+        self.__command = self.__bin_path
+        self.__input = None
         self.__mapper = {}
 
 
@@ -150,7 +149,7 @@ class SupervisedModelBase:
         (direction = horizontal)
 
         Inputs -
-            file (string): path to file
+            filename (string): path to file
             delimiter (char): value delimiter
             datatype (type): type of values read into pd.DataFrame
             bound (int or float)
@@ -271,7 +270,7 @@ class SupervisedModelBase:
             df = X.loc[X.level == label_]
             df = df.drop("level", 1)
             fname = self.get_unique_name(True)
-            df.to_csv(path_or_buf=(self.file_dir + "/" + fname), sep=" ", na_rep="", \
+            df.to_csv(path_or_buf=(self.__file_dir + "/" + fname), sep=" ", na_rep="", \
             header=False, index=False)
             lib_files.append(LibFile(class_num, label_, fname))
             class_num += 1
@@ -344,7 +343,7 @@ class SupervisedModelBase:
         for mapping in mappings:
             self.__mapper[mapping[0]] = mapping[1] # key = class_num, value = LibFile
             self.classes.append(mapping[1].label)
-            self.lib_command += mapping[1].filename + ' ' # should return only the filename
+            self.__lib_command += mapping[1].filename + ' ' # should return only the filename
         self.classes = np.asarray(self.classes)
         # return self
 
@@ -360,10 +359,10 @@ class SupervisedModelBase:
             (string) filename of the input_file
         '''
 
-        self.input = array
+        self.__input = array
         rows = array.tolist()
         fname = self.get_unique_name(False)
-        with open(self.file_dir + "/" + fname, "w") as f:
+        with open(self.__file_dir + "/" + fname, "w") as f:
             wr = csv.writer(input_fh, delimiter=" ")
             wr.writerows(rows)
         return fname
@@ -383,12 +382,12 @@ class SupervisedModelBase:
 
         if self.should_calculate(X): # dataset was not the same as before or first run
             if isinstance(X, np.ndarray):
-                self.input = X
+                self.__input = X
                 input_name_command = " -f " + self.write_out_nda(X)
             elif isinstance(X, pd.DataFrame): # being explicit
-                self.input = X
+                self.__input = X
                 fname = self.get_unique_name(False)
-                X.to_csv(path_or_buf=(self.file_dir + "/" + fname), sep=" ", na_rep="", \
+                X.to_csv(path_or_buf=(self.__file_dir + "/" + fname), sep=" ", na_rep="", \
                 header=False, index=False)
                 input_name_command = " -f " + fname
             else:
@@ -400,20 +399,20 @@ class SupervisedModelBase:
             if num_repeats is not None:
                 num_repeats_command = " -n " + str(num_repeats)
 
-            self.command += (input_name_command + self.lib_command + "-T symbolic -D row ")
-            self.command += ("-L true true true -o " + prefix + " -d false")
+            self.__command += (input_name_command + self.__lib_command + "-T symbolic -D row ")
+            self.__command += ("-L true true true -o " + prefix + " -d false")
 
             if input_length is not None:
-                self.command += input_length_command
+                self.__command += input_length_command
             if num_repeats is not None:
-                self.command += num_repeats_command
+                self.__command += num_repeats_command
 
             # (../bin/smashmatch  -f TEST0 -F LIB0 LIB1 LIB2
             # -T symbolic -D row -L true true true -o resx -n 2)
-            # print("Requested: {}".format(self.command))
+            # print("Requested: {}".format(self.__command))
 
-            os.chdir(self.file_dir)
-            sp.Popen(self.command, shell=True)
+            os.chdir(self.__file_dir)
+            sp.Popen(self.__command, shell=True)
 
             while not self.has_smashmatch():
                 print("Waiting for smashing algorithm to complete...")
@@ -435,10 +434,10 @@ class SupervisedModelBase:
         Clears the working data directory of previous run of smashmatch; no I/O
         '''
 
-        os.chdir(self.file_dir)
+        os.chdir(self.__file_dir)
         sp.Popen("rm input_*", shell=True).wait()
         sp.Popen("rm " + prefix + "*", shell=True).wait()
-        self.command = self.bin_path
+        self.__command = self.__bin_path
         os.chdir(cwd)
 
 
@@ -452,8 +451,8 @@ class SupervisedModelBase:
             (boolean) True if smashmatch files present, False if smashmatch files aren't present
         '''
 
-        if prefix + "_prob" in os.listdir(self.file_dir) and \
-        prefix + "_class" in os.listdir(self.file_dir):
+        if prefix + "_prob" in os.listdir(self.__file_dir) and \
+        prefix + "_class" in os.listdir(self.__file_dir):
             return True
         else:
             return False
@@ -462,7 +461,7 @@ class SupervisedModelBase:
     def should_calculate(self, X_):
         '''
         Clears result files of smashmatch if the previous dataset is different than the current
-        or if this is the first run of smashmatch (in which case self.input would be None)
+        or if this is the first run of smashmatch (in which case self.__input would be None)
 
         Inputs -
             X_ (nda): input time series
@@ -474,43 +473,43 @@ class SupervisedModelBase:
         '''
 
         # pdb.set_trace()
-        # because using a np compare, have to catch self.input = None first
+        # because using a np compare, have to catch self.__input = None first
         # will happen on first try
-        if self.input is None:
+        if self.__input is None:
             return True
 
         if isinstance(X_, np.ndarray):
             # assuming if previous run had diff input type then now new input data
-            if isinstance(self.input, pd.DataFrame):
+            if isinstance(self.__input, pd.DataFrame):
                 self.reset_input()
                 return True
             # don't clear results if same dataset: don't run again
-            elif isinstance(self.input, np.ndarray) and \
-            np.array_equal(X_, self.input) and self.has_smashmatch():
+            elif isinstance(self.__input, np.ndarray) and \
+            np.array_equal(X_, self.__input) and self.has_smashmatch():
                 return False
-            # implied self.input != X_
-            elif isinstance(self.input, np.ndarray) and not np.array_equal(X_, self.input):
+            # implied self.__input != X_
+            elif isinstance(self.__input, np.ndarray) and not np.array_equal(X_, self.__input):
                 self.reset_input()
                 return True
             else: # should only be one of the 3 above cases, but want to be explicit
             # surprise could happen if only either prefix_prob or prefix_class exist
                 # recalculating seems like best option here if the files don't exist
                 # print("Entered surprise state! Spoopy.")
-                self.command = self.bin_path
+                self.__command = self.__bin_path
                 return True
         elif isinstance(X_, pd.DataFrame):
-            if isinstance(self.input, np.ndarray):
+            if isinstance(self.__input, np.ndarray):
                 self.reset_input()
                 return True
-            elif isinstance(self.input, pd.DataFrame) and self.input.equals(X_) and \
+            elif isinstance(self.__input, pd.DataFrame) and self.__input.equals(X_) and \
             self.has_smashmatch():
                 return False
-            elif isinstance(self.input, pd.DataFrame) and not self.input.equals(X_):
+            elif isinstance(self.__input, pd.DataFrame) and not self.__input.equals(X_):
                 self.reset_input()
                 return True
             else:
                 # print("Entered surprise state! Spoopy.")
-                self.command = self.bin_path
+                self.__command = self.__bin_path
                 return True
         else:
             raise ValueError("Error: unsupported types for X. X can only be of type \
@@ -522,17 +521,17 @@ class SupervisedModelBase:
         Classifies each of the input time series (X) using smashmatch and the given parameters
 
         Inputs -
-            X (nda): input data (each row is a different timeseries)
+            x (nda): input data (each row is a different timeseries)
             il (int): length of the input timeseries to use (smashmatch param)
             nr (int): number of times to run smashmatch (for refining results) (smashmatch param)
 
         Outputs -
-            np.nda of shape num_timeseries, 1 if successful or None if not successful
+            np.nda of shape (num_timeseries), 1 if successful or None if not successful
         '''
 
         compute_res = self.compute(x, il, nr)
         if compute_res:
-            class_path = self.file_dir + "/" + prefix + "_class"
+            class_path = self.__file_dir + "/" + prefix + "_class"
             with open(class_path, 'r') as f:
                 raw = f.read().splitlines()
             formatted = []
@@ -552,7 +551,7 @@ class SupervisedModelBase:
         of the possible classes fitted
 
         Inputs -
-            X (nda): input data (each row is a different timeseries)
+            x (numpy.nda or pandas.DataFrame): input data (each row is a different timeseries)
             il (int): length of the input timeseries to use (smashmatch param)
             nr (int): number of times to run smashmatch (for refining results) (smashmatch param)
 
@@ -564,7 +563,7 @@ class SupervisedModelBase:
 
         compute_res = self.compute(x, il, nr)
         if compute_res:
-            class_path = self.file_dir + "/" + prefix + "_prob"
+            class_path = self.__file_dir + "/" + prefix + "_prob"
             probs = np.loadtxt(fname=class_path, dtype=float)
             return probs
         else:
@@ -578,9 +577,9 @@ class SupervisedModelBase:
         of the possible classes fitted
 
         Inputs -
-            X (nda): input data (each row is a different timeseries)
-            input_length (int): length of the input timeseries to use
-            num_repeats (int): number of times to run smashmatch (for refining results)
+            x (numpy.nda or pandas.DataFrame): input data (each row is a different timeseries)
+            il (int): length of the input timeseries to use
+            nr (int): number of times to run smashmatch (for refining results)
 
         Outputs -
             np.nda of shape n x m if successful or None if not successful
@@ -601,12 +600,12 @@ class SupervisedModelBase:
         relevant internally stored variables; no I/O
         '''
 
-        os.chdir(self.file_dir)
+        os.chdir(self.__file_dir)
         sp.Popen("rm lib_*", shell=True).wait()
         os.chdir(cwd)
         self.classes = []
         self.__lib_files = []
-        self.lib_command = " -F "
+        self.__lib_command = " -F "
 
 
 
