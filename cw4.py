@@ -325,7 +325,7 @@ class SupervisedModelBase:
                 time.sleep(20)
 
             if not self.has_smashmatch(): # should theoretically be impossible \
-            # to return False, but to be explicit
+            # to return False, but for safety
                 return False
             else: # successfully ran smashmatch to get results
                 os.unlink(self.input_fh.name)

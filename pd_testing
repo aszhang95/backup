@@ -163,3 +163,18 @@ def make_libs_df(X, y):
         class_num += 1
 
     return lib_files
+
+
+
+def name_generator(prefix=''):
+    '''
+    Generates unique filename with the given prefix
+
+    Inputs -
+        prefix (string)
+
+    Outputs -
+        unique_name
+    '''
+
+    return prefix + str(uuid.uuid4())

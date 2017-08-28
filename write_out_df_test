@@ -1,0 +1,61 @@
+import os, sys, time, tempfile, ntpath, csv, math, uuid, atexit
+import subprocess as sp
+import numpy as np
+from numpy import nan
+import pandas as pd
+
+
+
+def read_in_ragged(filename, delimiter_, datatype=float):
+    '''
+    Reads in file with mixed column lengths (timeseries of different length)
+
+    Inputs -
+        file (string): path to file
+        delimiter (char): value delimiter
+        nrows (int): number of timeseries (optional, but would speed up process)
+        max_cols (int): length of max (optional, but would speed up process)
+    Outputs -
+        pandas.DataFrame with missing values as NaN
+    '''
+
+    data = []
+    max_col_len = 0
+    with open(filename, 'r') as f:
+        for line in f:
+            row = line.rstrip('\n').split(delimiter_)
+            row_len = len(row)
+            if row_len > max_col_len:
+                max_col_len = row_len
+            data.append(row)
+    rv = pd.DataFrame(data, columns=range(max_col_len), dtype=datatype)
+    rv.fillna(value=nan, inplace=True)
+    return rv
+
+
+
+def write_out_ragged(filepath, df_, dtype=int):
+      '''
+      Writes out pd.DataFrame to tempfile
+
+      Inputs -
+          df (pd.DataFrame)
+
+      Outputs -
+          out (tempfile)
+      '''
+      assert(isinstance(df_, pd.DataFrame)), "Error: argument df is not type pandas.DataFrame"
+
+      data = df_.values.tolist()
+      to_write = []
+      for row in data:
+          out_row =[]
+          for value in row:
+              if not pd.isnull(value):
+                  out_value = int(value)
+          to_write.append([int(x) for x in row if not pd.isnull(x)])
+      out = tempfile.NamedTemporaryFile(dir=filepath, delete=False)
+      wr = csv.writer(out, delimiter=" ")
+      wr.writerows(to_write)
+      out.close()
+      return out
