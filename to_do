@@ -1,0 +1,17 @@
+base the smash (distance matrix) wrapper on the classification wrapper now
+i.e. create a class that stores the path to the binary and then
+
+attributes are X (the np.ndarray, and a function quantizer) assume quantizer is Q so then you would assume new_x =Q(x)
+default behavior is to
+
+if the user feeds in X with floats and no Q is specified, then raise an Error
+
+for clustering class, choose a sklearn clustering distance
+
+don't worry about I/O for any of these wrappers
+
+ask Ishanu later when we do consider a fix to the temporary directory thing
+
+DATA_ZED on git repo for dataset
+
+if you have any issues ask Ishanu

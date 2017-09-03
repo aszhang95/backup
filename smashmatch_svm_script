@@ -1,0 +1,23 @@
+from cw7 import *
+print("Classification of TEST0 from ../data_small using Smashmatch")
+bin_path = os.path.abspath("../bin/smashmatch")
+clf = SupervisedModelBase(bin_path)
+lib0 = clf.read_in_ragged("../data_small/LIB0", delimiter_=" ", datatype=int)
+lib1 = clf.read_in_ragged("../data_small/LIB1", delimiter_=" ", datatype=int)
+lib2 = clf.read_in_ragged("../data_small/LIB2", delimiter_=" ", datatype=int)
+maps = [(lib0, 0), (lib1, 1), (lib2, 2)]
+X, y = clf.condense(maps)
+clf.fit(X, y)
+data = clf.read_in_ragged("../data_small/TEST0", delimiter_=" ", datatype=int)
+results = clf.predict(data, nr=2)
+print results
+prob_result = clf.predict_proba(data, nr=2)
+print prob_result
+
+
+from sklearn.svm import SVC
+print("Classification of TEST0 from ../data_small using sklearn.SVC")
+clf_svc = SVC()
+clf_svc.fit(X, y)
+
+clf_svc.predict(data)

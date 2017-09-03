@@ -147,3 +147,24 @@ def read_in_ragged(filename, delimiter_, datatype=int, bound=None, lb=None, up=N
     rv = pd.DataFrame(data, columns=range(max_col_len), dtype=datatype)
     rv.fillna(value=nan, inplace=True)
     return rv
+
+
+    def write_out_ragged(path, df_):
+        '''
+        Writes out pd.DataFrame to tempfile
+
+        Inputs -
+            df (pd.DataFrame)
+
+        Outputs -
+            out (tempfile)
+        '''
+        assert(isinstance(df_, pd.DataFrame)), "Error: argument df is not type pandas.DataFrame"
+
+        data = df_.values.tolist()
+        to_write = []
+        for row in data:
+            to_write.append([int(x for x in row if not pd.isnull(x)])
+        with open(path, 'w') as f:
+            wr = csv.writer(f, delimiter=" ")
+            wr.writerows(to_write)

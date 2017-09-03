@@ -1,7 +1,7 @@
 ### Sample D3M Classification Wrapper usage
 
 # from within ipython:
-run cw6.py
+from cw6 import *
 # parameter of SupervisedModelBase: path/to/bin/smashmatch
 bin_path = os.path.abspath("../bin/smashmatch")
 
@@ -14,9 +14,9 @@ test = SupervisedModelBase(bin_path)
 # however for reading in library files of timeseries of unequal length
 # leave third parameter as default otherwise pandas will try to format NaN's as ints which will
 # throw an exception
-lib0 = test.read_in_ragged("LIB0", " ")
-lib1 = test.read_in_ragged("LIB1", " ")
-lib2 = test.read_in_ragged("LIB2", " ")
+lib0 = test.read_in_ragged("data_small/LIB0", " ")
+lib1 = test.read_in_ragged("data_small/LIB1", " ")
+lib2 = test.read_in_ragged("data_small/LIB2", " ")
 
 # to format into sklearn.SVM X, y inputs, need to run a few helper commands
 class_of_lib0 = 0
@@ -28,9 +28,9 @@ mappings = [(lib0, class_of_lib0), (lib1, class_of_lib1), (lib2, class_of_lib2)]
 # or, if dataset is vertically oriented, and each row is a value
 # and multiple files comprise a clase - consolidate those files into one folder
 # and run (note this returns a tuple)
-mapping0 = test.read_in_vert("CHE0-30", 1, 0, 0, 1, float)
-mapping1 = test.read_in_vert("JOH0-30", 2, 0, 0, 1, float)
-mappings = [mapping0, mapping1]
+# mapping0 = test.read_in_vert("CHE0-30", 1, 0, 0, 1, float)
+# mapping1 = test.read_in_vert("JOH0-30", 2, 0, 0, 1, float)
+# mappings = [mapping0, mapping1]
 
 # then to create X, y inputs
 X, y = test.condense(mappings)
@@ -42,8 +42,9 @@ test.fit(X, y)
 test.classes
 
 # then to read in a test data file for classification,
-data = test.read_in_ragged("../data_smashing_/classification_example/TEST0", delimiter_=" ", datatype=int)
+data = test.read_in_ragged("data_small/TEST0", delimiter_=" ", datatype=int)
 
 # can run test.predict, test.predict_proba (which returns the percentage probabilities),
 # and test.predict_log_proba
 results = test.predict(data)
+print results

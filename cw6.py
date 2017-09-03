@@ -399,7 +399,7 @@ class SupervisedModelBase:
             if num_repeats is not None:
                 num_repeats_command = " -n " + str(num_repeats)
 
-            self.__command += (input_name_command + self.__lib_command + "-T symbolic -D row ")
+            self.__command += (input_name_command + self.__lib_command + "-T symbolic -t off -D row ")
             self.__command += ("-L true true true -o " + prefix + " -d false")
 
             if input_length is not None:
@@ -415,7 +415,7 @@ class SupervisedModelBase:
             sp.Popen(self.__command, shell=True)
 
             while not self.has_smashmatch():
-                print("Waiting for smashing algorithm to complete...")
+                # print("Waiting for smashing algorithm to complete...")
                 time.sleep(20)
 
             os.chdir(cwd)
