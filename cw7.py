@@ -427,7 +427,7 @@ class SupervisedModelBase:
             if input_length is not None:
                 input_length_command = " -x " + str(input_length)
 
-            self.__command += (input_name_command + self.__lib_command + "-T symbolic -t off -D row ")
+            self.__command += (input_name_command + self.__lib_command + "-T symbolic -D row ")
             self.__command += ("-L true true true -o " + prefix + " -d false")
             self.__command += (" -n " + str(num_repeats))
 

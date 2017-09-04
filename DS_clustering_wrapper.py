@@ -12,9 +12,7 @@ from sklearn import cluster
 
 
 # global variables
-global cwd
 cwd = os.getcwd()
-global temp_dir
 temp_dir = str(uuid.uuid4())
 temp_dir = temp_dir.replace("-", "")
 
@@ -60,23 +58,23 @@ class SmashClustering:
     def __init__(self, bin_path_, X, n_clus, quantizer_=None, KMeans_class_=None):
         self.bin_path = bin_path_
         self.__quantizer = quantizer_
-        self.__input_dm = X
+        self.__input = X
         self.__num_clusters = n_clus
         if KMeans_class_ is not None:
             self.__KMeans_class = KMeans_class_
         else:
-            self.__KMeans_class = cluster.Kmeans(n_clusters=self.__num_clusters)
+            self.__KMeans_class = cluster.KMeans(n_clusters=self.__num_clusters)
         prev_wd = os.getcwd()
         os.chdir(cwd)
         sp.Popen("mkdir "+ temp_dir, shell=True).wait()
         self.__file_dir = cwd + "/" + temp_dir
         os.chdir(prev_wd)
-        if quantizer is not None:
-            if isinstance(self.__input_dm, pd.DataFrame):
-                self.__quantized_input = self.__input_dm.applymap(self.__quantizer)
-            elif isinstance(self.__input_dm, np.ndarray):
+        if quantizer_ is not None:
+            if isinstance(self.__input, pd.DataFrame):
+                self.__quantized_input = self.__input.applymap(self.__quantizer)
+            elif isinstance(self.__input, np.ndarray):
                 self.quantizer = np.vectorize(self.quantizer)
-                self.__quantized_input = self.quantizer(self.__input_dm)
+                self.__quantized_input = self.quantizer(self.__input)
             else:
                 raise ("Error: input data must be either numpy.ndarray or pandas.DataFrame.")
         else:
@@ -84,7 +82,7 @@ class SmashClustering:
         self.__input_dm_fh = None
         self.__input_dm_fname = None
         self.__output_dm_fname = None
-        self.__command = (self.bin_path + "/smash")
+        self.__command = self.bin_path
         self.__input_e = None
 
     @property
@@ -139,14 +137,14 @@ class SmashClustering:
         No I/O
         '''
 
-        self.__input_dm = new_input
+        self.__input = new_input
         if new_quantizer is not None:
             self.__quantizer = new_quantizer
-            if isinstance(self.__input_dm, pd.DataFrame):
-                self.__quantized_input = self.__input_dm.applymap(self.__quantizer)
-            elif isinstance(self.__input_dm, np.ndarray):
+            if isinstance(self.__input, pd.DataFrame):
+                self.__quantized_input = self.__input.applymap(self.__quantizer)
+            elif isinstance(self.__input, np.ndarray):
                 self.quantizer = np.vectorize(self.quantizer)
-                self.__quantized_input = self.quantizer(self.__input_dm)
+                self.__quantized_input = self.quantizer(self.__input)
             else:
                 raise ("Error: input data must be either numpy.ndarray or pandas.DataFrame.")
 
@@ -166,7 +164,7 @@ class SmashClustering:
         if quantized:
             input_data = self.__quantized_input
         else:
-            input_data = self.__input_dm
+            input_data = self.__input
 
         if isinstance(input_data, pd.DataFrame):
             data = input_data.values.tolist()
@@ -202,7 +200,7 @@ class SmashClustering:
 
         if not first_run_dm:
             os.unlink(self.__input_dm_fh.name)
-            self.__command = (self.bin_path + "/smash")
+            self.__command = self.bin_path
 
         if not quantized:
             self.write_out_ragged(False)
@@ -248,18 +246,18 @@ class SmashClustering:
         '''
 
         if self.__quantized_input is None:
-            if isinstance(self.__input_dm, pd.DataFrame):
-                floats_df = self.__input_dm.select_dtypes(include=[np.float])
+            if isinstance(self.__input, pd.DataFrame):
+                floats_df = self.__input.select_dtypes(include=[np.float])
                 if floats_df.size > 0:
                     raise ValueError("Error: input to Smashing algorithm cannot be of type float; \
                     data not properly quantized .")
-                else: # will run_dm smash on self.__input_dm, which are all ints
+                else: # will run_dm smash on self.__input, which are all ints
                     if self.__input_dm_fh is None:
                         return self.run_dm(False, True, ml, nr, d)
                     else:
                         return self.run_dm(False, False, ml, nr, d)
-            elif isinstance(self.__input_dm, np.ndarray):
-                if np.issubdtype(self.__input_dm.dtype, float):
+            elif isinstance(self.__input, np.ndarray):
+                if np.issubdtype(self.__input.dtype, float):
                     raise ValueError("Error: input to Smashing algorithm cannot be of type float; \
                     data not properly quantized .")
                 else:
@@ -271,7 +269,7 @@ class SmashClustering:
                 raise TypeError("Error: input data must be either numpy.ndarray or pandas.DataFrame.")
         else:
             if isinstance(self.__quantized_input, np.ndarray) or isinstance(self.__quantized_input, pd.DataFrame):
-                if self.__input_fh is None:
+                if self.__input_dm_fh is None:
                     return self.run_dm(True, True, ml, nr, d)
                 else:
                     return self.run_dm(True, False, ml, nr, d)

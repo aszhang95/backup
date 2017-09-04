@@ -11,8 +11,7 @@ import pandas as pd
 
 
 # global variables
-global cwd = os.getcwd()
-global temp_dir
+cwd = os.getcwd()
 temp_dir = str(uuid.uuid4())
 temp_dir = temp_dir.replace("-", "")
 
@@ -35,11 +34,11 @@ def path_leaf(path):
 
 
 
-# def q(x):
-#     if x <= 0:
-#         return 0
-#     else:
-#         return 1
+def q(x):
+    if x <= 0:
+        return 0
+    else:
+        return 1
 
 
 

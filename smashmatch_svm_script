@@ -14,7 +14,7 @@ print results
 prob_result = clf.predict_proba(data, nr=2)
 print prob_result
 
-
+# this doesn't work because ragged timeseries
 from sklearn.svm import SVC
 print("Classification of TEST0 from ../data_small using sklearn.SVC")
 clf_svc = SVC()
