@@ -4,6 +4,7 @@ import numpy as np
 from numpy import nan
 import pandas as pd
 from sklearn import manifold
+from d3m_unsup_wo_output_class import *
 
 
 
@@ -34,65 +35,49 @@ def path_leaf(path):
 
 
 
-class SmashEmbedding:
+class SmashEmbedding(Unsupervised_Series_Learning_Base):
     '''
     Object for run_dmning Smashmatch to calculate the distance matrix between time series
     and using Sippl and/or sklearn.manifold.MDS to embed
 
     Inputs -
         bin_path_(string): Path to smashmatch as a string
-        quantiziation (function): quantization function for time series data
+        input_class_ (Input Object): Input data
+        n_dim (int): number of dimensions for embedding algorithm calculation
+        MDS_ (sklearn.manifold.MDS): preconfigured primitive to use for embedding comparison
 
     Attributes:
         bin_path (string): path to bin/smash
-        quantizer (function): function to quantify input data
-        quantized input (numpy.ndarray or pd.DataFrame) the transformed input data if
-            quantizer function is specified
         num_dimensions (int): number of dimensions used for embedding
 
         (Note: bin_path and num_dimensions can be set by assignment, input and quantizer must be
             set using custom method)
     '''
 
-    def __init__(self, bin_path_, X, n_dim, quantizer_=None):
+    def __init__(self, bin_path_, input_class_, n_dim, MDS_=None):
         self.bin_path = bin_path_
-        self.__quantizer = quantizer_
-        self.__input = X
+        self.__input_class = input_class_
+        self._data = input_class.data
         self.__num_dimensions = n_dim
         prev_wd = os.getcwd()
         os.chdir(cwd)
         sp.Popen("mkdir "+ temp_dir, shell=True).wait()
         self.__file_dir = cwd + "/" + temp_dir
         os.chdir(prev_wd)
-        if quantizer_ is not None:
-            if isinstance(self.__input, pd.DataFrame):
-                self.__quantized_input = self.__input.applymap(self.__quantizer)
-            elif isinstance(self.__input, np.ndarray):
-                self.quantizer = np.vectorize(self.quantizer)
-                self.__quantized_input = self.quantizer(self.__input)
-            else:
-                raise ("Error: input data must be either numpy.ndarray or pandas.DataFrame.")
-        else:
-            self.__quantized_input = None
+        self.__quantized_data  = input_class.get()
+        self._problem_type = "embedding"
         self.__input_dm_fh = None
         self.__input_dm_fname = None
         self.__output_dm_fname = None
         self.__command = (self.bin_path + "/smash")
+        self._output = None
         self.__input_e = None
-
-    @property
-    def input(self):
-        return self.__input
-
-
-    @property
-    def quantizer(self):
-        return self.__quantizer
-
-
-    @property
-    def quantized_input(self):
-        return self.__quantized_input
+        if MDS_ is not None:
+            self._primitive = MDS_
+        else:
+            self._primitive = manifold.MDS(n_components=self.__num_dimensions,metric=True, \
+            n_init=4, max_iter=300, verbose=0, eps=0.001, n_jobs=1, \
+            random_state=None, dissimilarity='precomputed')
 
 
     @property
@@ -113,25 +98,37 @@ class SmashEmbedding:
 
     @num_dimensions.setter
     def num_dimensions(self, new_ndim):
+        assert isinstance(new_ndim, int), "Error: num_dimensions must be an int."
         self.__num_dimensions = new_ndim
 
 
-    def set_input(self, new_input, new_quantizer=None):
-        '''
-        Setter method for class input attributes; modifies object in place
-        No I/O
-        '''
+    @property
+    def data(self):
+        return self._data
 
-        self.__input = new_input
-        if new_quantizer is not None:
-            self.__quantizer = new_quantizer
-            if isinstance(self.__input, pd.DataFrame):
-                self.__quantized_input = self.__input.applymap(self.__quantizer)
-            elif isinstance(self.__input, np.ndarray):
-                self.quantizer = np.vectorize(self.quantizer)
-                self.__quantized_input = self.quantizer(self.__input)
-            else:
-                raise ("Error: input data must be either numpy.ndarray or pandas.DataFrame.")
+
+    @data.setter
+    def data(self, input_data):
+        if not isinstance(input_data,Input):
+            raise Exception('data must be instance of Input class')
+        self.__input_class = input_data
+        self._data = self.__input_class.data
+        self.__quantized_data = self.__input_class.get()
+
+
+    @property
+    def primitive(self):
+        return self._primitive
+
+
+    @primitive.setter
+    def primitive(self, prim_):
+        if self.primitive_check(prim_):
+            self._primitive = prim_
+
+
+    def primitive_check(dict_):
+        return isinstance(dict_, manifold.MDS)
 
 
     def write_out_ragged(self, quantized):
@@ -147,20 +144,15 @@ class SmashEmbedding:
         '''
 
         if quantized:
-            input_data = self.__quantized_input
+            input_data = self.__quantized_data
         else:
-            input_data = self.__input
+            input_data = self._data
 
-        if isinstance(input_data, pd.DataFrame):
-            data = input_data.values.tolist()
-        elif isinstance(input_data, np.ndarray):
-            data = input_data.tolist()
-        else:
-            raise TypeError("Error: input data must be either numpy.ndarray or pandas.DataFrame.")
+        data = input_data.tolist()
 
         to_write = []
         for row in data:
-            to_write.append( [int(x) for x in row if not pd.isnull(x)] )
+            to_write.append( [int(x) for x in row if not np.isnan(x)] )
 
         self.__input_dm_fh = tempfile.NamedTemporaryFile(dir=self.__file_dir, delete=False)
         wr = csv.writer(self.__input_dm_fh, delimiter=" ")
@@ -230,36 +222,24 @@ class SmashEmbedding:
             (numpy.ndarray) distance matrix of the input timeseries (shape n_samples x n_samples)
         '''
 
-        if self.__quantized_input is None:
-            if isinstance(self.__input, pd.DataFrame):
-                floats_df = self.__input.select_dtypes(include=[np.float])
-                if floats_df.size > 0:
-                    raise ValueError("Error: input to Smashing algorithm cannot be of type float; \
-                    data not properly quantized .")
-                else: # will run_dm smash on self.__input, which are all ints
-                    if self.__input_dm_fh is None:
-                        return self.run_dm(False, True, ml, nr, d)
-                    else:
-                        return self.run_dm(False, False, ml, nr, d)
-            elif isinstance(self.__input, np.ndarray):
-                if np.issubdtype(self.__input.dtype, float):
-                    raise ValueError("Error: input to Smashing algorithm cannot be of type float; \
-                    data not properly quantized .")
-                else:
-                    if self.__input_dm_fh is None:
-                        return self.run_dm(False, True, ml, nr, d)
-                    else:
-                        return self.run_dm(False, False, ml, nr, d)
+        if self.__quantized_data is None: # no checks because assume data was pre-processed in Input
+            if np.issubdtype(self._data .dtype, float):
+                raise ValueError("Error: input to Smashing algorithm cannot be of type float; \
+                data not properly quantized .")
             else:
-                raise TypeError("Error: input data must be either numpy.ndarray or pandas.DataFrame.")
-        else:
-            if isinstance(self.__quantized_input, np.ndarray) or isinstance(self.__quantized_input, pd.DataFrame):
                 if self.__input_dm_fh is None:
-                    return self.run_dm(True, True, ml, nr, d)
+                    self._output = self.run_dm(False, True, ml, nr, d)
+                    return self._output
                 else:
-                    return self.run_dm(True, False, ml, nr, d)
+                    self._output = self.run_dm(False, False, ml, nr, d)
+                    return self._output
+        else:
+            if self.__input_dm_fh is None:
+                self._output = self.run_dm(True, True, ml, nr, d)
+                return self._output
             else:
-                raise TypeError("Error: input data must be either numpy.ndarray or pandas.DataFrame.")
+                self._output = self.run_dm(True, False, ml, nr, d)
+                return self._output
 
 
     def fit_transform(self, ml=None, nr=None, d=False):
@@ -302,14 +282,49 @@ class SmashEmbedding:
                 greater than dimensions of input data")
             sippl_feat = sippl_embed[:, :self.__num_dimensions]
             os.chdir(prev_wd)
-            return sippl_feat
+            self._output = sippl_feat
+            return self._output
         except IOError:
             print "Error: Embedding unsuccessful. Please try again."
 
 
-    def sklearn_MDS_embedding(self, ml=None, nr=None, d=False, metric_=True, n_init_=4, \
-    max_iter_=300, verbose_=0, eps_=0.001, n_jobs_=1, random_state_=None, \
-    dissimilarity_='precomputed', y_=None, init_=None):
+    @abstractmethod
+    def fit_predict(self,*arg,**kwds):
+        warnings.warn('Warning: fit_predict method for this class is undefined.')
+        pass
+
+
+    @abstractmethod
+    def predict(self,*arg,**kwds):
+        warnings.warn('Warning: predict method for this class is undefined.')
+        pass
+
+
+    @abstractmethod
+    def predict_proba(self,*arg,**kwds):
+        warnings.warn('Warning: predict_proba method for this class is undefined.')
+        pass
+
+
+    @abstractmethod
+    def log_proba(self,*arg,**kwds):
+        warnings.warn('Warning: log_proba method for this class is undefined.')
+        pass
+
+
+    @abstractmethod
+    def score(self,*arg,**kwds):
+        warnings.warn('Warning: score method for this class is undefined.')
+        pass
+
+
+    @abstractmethod
+    def transform(self,*arg,**kwds):
+        warnings.warn('Warning: transform method for this class is undefined.')
+        pass
+
+
+    def sklearn_MDS_embed(self, ml=None, nr=None, d=False, init_=None):
         '''
         Returns sklearn fit_transform of distance matrix computed by data smashing algorithm
 
@@ -327,9 +342,10 @@ class SmashEmbedding:
         '''
 
         self.__input_e = self.fit(ml, nr, d)
-        mds = manifold.MDS(self.__num_dimensions, metric_, n_init_, max_iter_, \
-        verbose_, eps_, n_jobs_, random_state_, dissimilarity_)
-        return mds.fit_transform(self.__input_e, y_, init_)
+        if self._data_additional is not None:
+            y_ = self._data_additional.data
+        self._output = self._primitive.fit_transform(self.__input_e, y_, init_)
+        return self._output
 
 
 def cleanup():

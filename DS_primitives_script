@@ -1,0 +1,46 @@
+from pycode/cw7 import *
+from pycode/DS_distance_matrix_wrapper import *
+
+bin_path = os.path.abspath("../bin/smash")
+
+test = SupervisedModelBase(bin_path)
+X = test.read_in_ragged("../deploy_scripts/examples/data.dat", " ")
+
+def q(x):
+    if x <= 0:
+        return 0
+    else:
+        return 1
+
+print("Initializing SmashDistanceMatrix Primitive")
+dmt = SmashDistancePrimitive(bin_path, X, q)
+print("Calling DataSmashingPrimitive.fit with details on and num_runs=2 on \
+deploy_scripts/examples/data.dat")
+
+results = dmt.fit(nr=2, d=True)
+print(results)
+
+print("Now running DS_embedding_primitive with num_features=2")
+from pycode/DS_embedding_wrapper import *
+bin_path = os.path.abspath("bin/")
+
+dse = SmashEmbedding(bin_path, X, 2, q)
+print("Calling DataSmashingEmbedding.fit_transform with details on")
+e_res = dse.fit_transform(nr=2,d=True)
+print(e_res)
+
+print("Calling DataSmashingEmbedding.sklearn.MDS_embedding with details on and num_features=2")
+mds_e = dse.sklearn_MDS_embedding(nr=2, d=True)
+print(mds_e)
+
+print("Now running DatasmashingClusteringPrimitive with num_clusters=4")
+from pycode/DS_clustering_wrapper import *
+bin_path = os.path.abspath("bin/smash")
+dsc = SmashClustering(bin_path, X, 4, q)
+
+print("Calling SmashclusteringPrimitive.fit_predict using sklearn KMeans, details on, num_repeats=2")
+res = dsc.fit_predict(nr=2, d=True)
+print(res)
+print("Calling SmashclusteringPrimitive.fit_transform using sklearn KMeans, details on, num_repeats=2")
+res2 = dsc.fit_transform(nr=2, d=True)
+print(res2)
