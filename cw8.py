@@ -47,10 +47,12 @@ class SmashMatchClassification():
         bin_path_(string): Path to smashmatch as a string
         classes (np.1Darray): class labels fitted into the model; also column headers for
             predict functions
+        preproc (vectorized function): quantization function for timeseries data
     '''
 
-    def __init__(self, bin_path_): # lib_files = list of library file names or LibFile Objects
-        assert os.path.isdir(bin_path), "Error: invalid bin path."
+    # lib_files = list of library file names or LibFile Objects
+    def __init__(self, bin_path_, preproc_=None, force_vect_preproc=False):
+        assert os.path.isfile(bin_path_), "Error: invalid bin path."
         self.__bin_path = os.path.abspath(bin_path_)
         prev_wd = os.getcwd()
         os.chdir(cwd)
@@ -63,6 +65,10 @@ class SmashMatchClassification():
         self.__command = self.__bin_path
         self.__input = None
         self.__mapper = {}
+        if force_vect_preproc and preproc_ is not None:
+            self.__preproc = np.vectorize(preproc_)
+        else:
+            self.__preproc = preproc_
 
 
     @property
@@ -72,7 +78,7 @@ class SmashMatchClassification():
 
     @bin_path.setter
     def bin_path(self, new_path):
-        assert os.path.isdir(new_path), "Error: invalid bin path."
+        assert os.path.isfile(new_path), "Error: invalid bin path."
         self.__bin_path = os.path.abspath(new_path)
 
 
@@ -83,8 +89,22 @@ class SmashMatchClassification():
 
     @classes.setter
     def classes(self, new_classes):
-        assert isinstance(new_classes, np.ndarray), "Error: classes must be of type numpy.ndarray"
+        assert isinstance(new_classes, np.ndarray), \
+        "Error: classes must be of type numpy.ndarray"
         self.__classes = new_classes
+
+
+    @property
+    def preproc(self):
+        return self.__preproc
+
+
+    @preproc.setter
+    def preproc(self, new_preproc, force_vect_preproc):
+        if force_vect_preproc:
+            self.__preproc = np.vectorize(new_preproc)
+        else:
+            self.__preproc = new_preproc
 
 
     @property
@@ -102,8 +122,7 @@ class SmashMatchClassification():
 
 
     ### helper functions for library files:
-    def read_in_vert(self, directory, label=None, bound=None, \
-    lb=None, ub=None, dtype_=float):
+    def read_in_vert(self, directory, label=None, quantize=False):
         '''
         Helper method:
         Converts folder of libraries with vertical orientation to pd.DataFrame for
@@ -113,54 +132,36 @@ class SmashMatchClassification():
         Inputs -
             directory (string): path to a directory or file (if file, do not use label)
             delimiter (char): value delimiter
-            datatype (type): type of values read into pd.DataFrame
-            bound (int or float)
-            lb (int or float): value to reassign input values if they are
-                less than bound (must have bound to have lb and ub)
-            ub (int or float): value to reassign input values if they are
-                greater than bound (must have bound to have lb and ub)
+            quantize (boolean): if input x timeseries have not beeen quantized,
+                apply instantiated quantizer to input timeseries examples
 
         Outputs -
             tuple of pandas.DataFrame with missing values as NaN and label
             (to feed into SMB.condense()) or just pd.DataFrame if no bound given
         '''
 
-        if bound is not None:
-            assert (lb is not None and ub is not None), "Error: cannot specify bound\
-            without specifying quantization"
         if os.path.isdir(directory):
             total = []
             max_cols = 0
-            if bound is not None:
-                for filename in os.listdir(directory):
-                    row = []
-                    with open(directory+"/"+filename, "r") as f:
-                        col_counter = 0
-                        for line in f:
-                            val = float(line.rstrip())
-                            if val < bound:
-                                row.append(lb)
-                            elif val > bound:
-                                row.append(ub)
-                            else:
-                                row.append(val)
-                            col_counter += 1
-                    if col_counter > max_cols:
-                        max_cols = col_counter
-                    total.append(row)
+            for filename in os.listdir(directory):
+                row = []
+                with open(directory+"/"+filename, "r") as f:
+                    col_counter = 0
+                    for line in f:
+                        row.append(line.strip())
+                        col_counter += 1
+                if col_counter > max_cols:
+                    max_cols = col_counter
+                total.append(row)
+
+            if not quantize:
+                rv = pd.DataFrame(total, columns=range(max_cols), dtype=np.int32)
+                rv.fillna(value=nan, inplace=True)
             else:
-                for filename in os.listdir(directory):
-                    row = []
-                    with open(directory+"/"+filename, "r") as f:
-                        col_counter = 0
-                        for line in f:
-                            row.append(line.strip())
-                            col_counter += 1
-                    if col_counter > max_cols:
-                        max_cols = col_counter
-                    total.append(row)
-            rv = pd.DataFrame(total, columns=range(max_cols), dtype=dtype_)
-            rv.fillna(value=nan, inplace=True)
+                assert(self.__preproc is not None), "Error: no quantization function defined"
+                rv = pd.DataFrame(total, columns=range(max_cols), dtype=float)
+                rv.fillna(value=nan, inplace=True)
+                rv = rv.applymap(self.__preproc)
 
             if label is not None:
                 return (rv, label)
@@ -168,26 +169,24 @@ class SmashMatchClassification():
                 return rv
         else: # path to a singular file
             row = []
-            col_counter = 0
-            if bound is not None:
-                with open(directory, "r") as f:
-                    for line in f:
-                        val = float(line.rstrip())
-                        if val < bound:
-                            row.append(lb)
-                        elif val > bound:
-                            row.append(ub)
-                        else:
-                            row.append(val)
+            with open(directory, "r") as f:
+                for line in f:
+                    row.append(line.strip())
+
+            if not quantize:
+                rv = pd.DataFrame(total, dtype=np.int32)
             else:
-                with open(directory, "r") as f:
-                    for line in f:
-                        row.append(line.strip())
-            rv = pd.DataFrame([row], dtype=dtype_)
-            return rv
+                assert(self.__preproc is not None), "Error: no quantization function defined"
+                rv = pd.DataFrame(total, dtype=float)
+                rv = rv.applymap(self.__preproc)
+
+            if label is not None:
+                return (rv, label)
+            else:
+                return rv
 
 
-    def read_in_ragged(self, filename, delimiter_, datatype=int, bound=None, lb=None, up=None):
+    def read_in_series(self, filename, delimiter_, quantize=False):
         '''
         Helper method:
         Reads in file with mixed column lengths (timeseries of different length)
@@ -196,54 +195,33 @@ class SmashMatchClassification():
         Inputs -
             filename (string): path to file
             delimiter (char): value delimiter
-            datatype (type): type of values read into pd.DataFrame
-            bound (int or float)
-            lb (int or float): value to reassign input values if they are
-                less than bound (must have bound to have lb and ub)
-            ub (int or float): value to reassign input values if they are
-                greater than bound (must have bound to have lb and ub)
+            quantize (boolean): if input x timeseries have not beeen quantized,
+                apply instantiated quantizer to input timeseries examples
 
         Outputs -
-            tuple of pandas.DataFrame with missing values as NaN and label or just
-                pd.DataFrame if no bound given (to feed into SMB.condense())
+            tuple of pandas.DataFrame with missing values as NaN (to feed into SMB.condense())
         '''
 
-        if bound is not None:
-            assert (lb is not None and up is not None), "Error: cannot specify boundary\
-            without specifying quantization"
         data = []
         max_col_len = 0
         with open(filename, 'r') as f:
-            if bound is not None:
-                for line in f:
-                    formatted_row = []
-                    row = line.strip().split(delimiter_)
-                    if row[-1] == "":
-                        row = row[:-1]
-                    row_len = len(row)
-                    if row_len > max_col_len:
-                        max_col_len = row_len
-                    for val in row:
-                        fval = float(val)
-                        if fval < bound:
-                            formatted_row.append(lb)
-                        elif fval > bound:
-                            formatted_row.append(ub)
-                        else:
-                            formatted_row.append(fval)
-                    data.append(formatted_row)
+            for line in f:
+                formatted_row = []
+                row = line.strip().split(delimiter_)
+                if row[-1] == "":
+                    row = row[:-1]
+                row_len = len(row)
+                if row_len > max_col_len:
+                    max_col_len = row_len
+                data.append(row)
+            if not quantize:
+                rv = pd.DataFrame(data, columns=range(max_col_len), dtype=np.int32)
+                rv.fillna(value=nan, inplace=True)
             else:
-                for line in f:
-                    formatted_row = []
-                    row = line.strip().split(delimiter_)
-                    if row[-1] == "":
-                        row = row[:-1]
-                    row_len = len(row)
-                    if row_len > max_col_len:
-                        max_col_len = row_len
-                    data.append(row)
-        rv = pd.DataFrame(data, columns=range(max_col_len), dtype=datatype)
-        rv.fillna(value=nan, inplace=True)
+                assert(self.__preproc is not None), "Error: no quantization function defined"
+                rv = pd.DataFrame(data, columns=range(max_col_len), dtype=float)
+                rv.fillna(value=nan, inplace=True)
+                rv = rv.applymap(self.__preproc)
         return rv
 
 
@@ -359,7 +337,7 @@ class SmashMatchClassification():
         return rv
 
 
-    def fit(self, X, y): # not sure what to do with kwargs or the classes/sample_weight params
+    def fit(self, X, y, quantize=False): # not sure what to do with kwargs or the classes/sample_weight params
         '''
         Reads in appropriate data/labels -> library class files
         to be used by SmashMatch
@@ -367,19 +345,27 @@ class SmashMatchClassification():
         Inputs -
             X (np.nda or pandas.DataFrame): class examples
             y (np.1da or pandas.Series): class labels
+            quantize (boolean): if input X timeseries have not beeen quantized,
+                apply instantiated quantizer to input timeseries examples
 
         Returns -
           (None) modifies object in place
         '''
 
+        if quantize:
+            assert(self.__preproc is not None), "Error: no quantization function defined"
         # delete old library files before running (would only be true after first run)
         len_libs = len(self.__lib_files)
         if len_libs != 0:
             self.clean_libs()
 
         if isinstance(X, np.ndarray):
+            if quantize:
+                X = self.__preproc(X)
             self.__lib_files = self.make_libs(X, y)
         elif isinstance(X, pd.DataFrame):
+            if quantize:
+                X = X.applymap(self.__preproc)
             self.__lib_files = self.make_libs_df(X, y)
         else:
             raise ValueError("Error: unsupported types for X. X can only be of type \
@@ -410,7 +396,7 @@ class SmashMatchClassification():
             (string) filename of the input_file
         '''
 
-        self.__input = array
+        self.__input = array.astype(np.int32)
         rows = array.tolist()
         fname = self.get_unique_name(False)
         with open(self.__file_dir + "/" + fname, "w") as f:
@@ -487,7 +473,7 @@ class SmashMatchClassification():
                 self.__command += " -t 0"
 
             os.chdir(self.__file_dir)
-            os.system(self.__command)
+            sp.Popen(self.__command, shell=True).wait()
             os.chdir(cwd)
 
             if not self.has_smashmatch(): # should theoretically be impossible \
@@ -594,7 +580,7 @@ class SmashMatchClassification():
 
 
     # actual methods of smashmatch
-    def predict(self, x, il=None, nr=2, no_details=True, force=False):
+    def predict(self, x, il=None, nr=2, no_details=True, force=False, quantize=False):
         '''
         Classifies each of the input time series (X) using smashmatch and the given parameters
 
@@ -604,10 +590,22 @@ class SmashMatchClassification():
             nr (int): number of times to run smashmatch (for refining results) (smashmatch param)
             no_details (boolean): do not print Smashmatch statisitics while running clasification
             force (boolean): force re-classification on current dataset
+            quantize (boolean): if input x timeseries have not beeen quantized,
+                apply instantiated quantizer to input timeseries examples
 
         Outputs -
             np.nda of shape (num_timeseries), 1 if successful or None if not successful
         '''
+
+        if quantize:
+            assert(self.__preproc is not None), "Error: no quantization function defined"
+
+        if isinstance(x, np.ndarray):
+            if quantize:
+                x = self.__preproc(x)
+        elif isinstance(x, pd.DataFrame):
+            if quantize:
+                x = x.applymap(self.__preproc)
 
         compute_res = self.compute(x, il, nr, no_details, force)
         if compute_res:
@@ -626,7 +624,7 @@ class SmashMatchClassification():
             return None
 
 
-    def predict_proba(self, x, il=None, nr=2, no_details=True, force=False):
+    def predict_proba(self, x, il=None, nr=2, no_details=True, force=False, quantize=False):
         '''
         Predicts percentage probability for the input time series to classify as any
         of the possible classes fitted
@@ -637,12 +635,24 @@ class SmashMatchClassification():
             nr (int): number of times to run smashmatch (for refining results) (smashmatch param)
             no_details (boolean): do not print Smashmatch statisitics while running clasification
             force (boolean): force re-classification on current dataset
+            quantize (boolean): if input x timeseries have not beeen quantized,
+                apply instantiated quantizer to input timeseries examples
 
         Outputs -
             np.nda of shape n x m if successful or None if not successful
                 where n = num_timeseries and m = num_classes
                 probabilities are listed in an order corresponding to the classes attribute
         '''
+
+        if quantize:
+            assert(self.__preproc is not None), "Error: no quantization function defined"
+
+        if isinstance(x, np.ndarray):
+            if quantize:
+                x = self.__preproc(x)
+        elif isinstance(x, pd.DataFrame):
+            if quantize:
+                x = x.applymap(self.__preproc)
 
         compute_res = self.compute(x, il, nr, no_details, force)
         if compute_res:
@@ -654,7 +664,7 @@ class SmashMatchClassification():
             return None
 
 
-    def predict_log_proba(self, x, il=None, nr=2, no_details=True, force=False):
+    def predict_log_proba(self, x, il=None, nr=2, no_details=True, force=False, quantize=False):
         '''
         Predicts logarithmic probability for the input time series to classify as any
         of the possible classes fitted
@@ -665,6 +675,8 @@ class SmashMatchClassification():
             nr (int): number of times to run smashmatch (for refining results)
             no_details (boolean): do not print Smashmatch statisitics while running clasification
             force (boolean): force re-classification on current dataset
+            quantize (boolean): if input x timeseries have not beeen quantized,
+                apply instantiated quantizer to input timeseries examples
 
         Outputs -
             np.nda of shape n x m if successful or None if not successful
@@ -672,7 +684,7 @@ class SmashMatchClassification():
                 probabilities are listed in an order corresponding to the classes attribute
         '''
 
-        probs = self.predict_proba(x, il, nr, no_details, force)
+        probs = self.predict_proba(x, il, nr, no_details, force, quantize)
         if probs is not None:
             return np.log(probs)
         else:
@@ -692,13 +704,14 @@ class SmashMatchClassification():
 
 
     def staged_predict_log_proba(self, X):
-        warnings.warn('Warning: staged_predict_log_proba method for this class is undefined \
+        warnings.warn('Warning: staged_predict_log_proba method for this class is undefined\
         because SmashMatch does not classify based on models.')
         pass
 
 
     def clean_libs(self):
         '''
+        Helper method:
         Removes files created by reading and writing library files and clears
         relevant internally stored variables; no I/O
         '''
@@ -714,6 +727,7 @@ class SmashMatchClassification():
 
 def cleanup():
     '''
+    Maintenance function:
     Clean up library files before closing the script; no I/O
     '''
 

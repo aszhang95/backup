@@ -3,7 +3,7 @@ import subprocess as sp
 import numpy as np
 from numpy import nan
 import pandas as pd
-from sklearn import manifold
+from sklearn import cluster
 from d3m_unsup_wo_output_class import *
 
 
@@ -17,52 +17,49 @@ temp_dir = str(uuid.uuid4())
 temp_dir = temp_dir.replace("-", "")
 
 
-# global helper functions
-def path_leaf(path):
+
+class SmashClustering(Unsupervised_Series_Learning_Base):
     '''
-    Returns filename from a given path/to/file
-    Taken entirely from Lauritz V. Thaulow on https://stackoverflow.com/questions/8384737
-
-    Input -
-        path (string): path/to/the/file
-
-    Returns -
-        filename (string)
-    '''
-
-    head, tail = ntpath.split(path)
-    return tail or ntpath.basename(head)
-
-
-
-class SmashDistanceMatrixLearning(Unsupervised_Series_Learning_Base):
-    '''
-    Object for running Smashmatch to calculate the distance matrix between time series
+    Object for run_dmning Smashmatch to calculate the distance matrix between time series
+    and using Sippl and/or sklearn.manifold.MDS to embed
 
     Inputs -
         bin_path_(string): Path to smashmatch as a string
-        input_class_ (Input Object): Input data
+        quantiziation (function): quantization function for time series data
 
     Attributes:
         bin_path (string): path to bin/smash
+        quantizer (function): function to quantify input data
+        quantized input (numpy.ndarray or pd.DataFrame) the transformed input data if
+            quantizer function is specified
+        num_dimensions (int): number of dimensions used for embedding
+
+        (Note: bin_path and num_dimensions can be set by assignment, input and quantizer must be
+            set using custom method)
     '''
 
-    def __init__(self, bin_path_, input_class_):
-        self.bin_path = bin_path_
+    def __init__(self, bin_path_, input_class_, n_clus, cluster_class=None):
+        self.__bin_path = os.path.abspath(bin_path_)
         self.__input_class = input_class_
-        self._data = input_class.data
+        self._data = self.__input_class.data
+        self.__num_clusters = n_clus
+        if cluster_class is None:
+            self.__cluster_class = cluster.KMeans(n_clusters=self.__num_clusters)
+        else:
+            self.__cluster_class = cluster_class
         prev_wd = os.getcwd()
         os.chdir(cwd)
         sp.Popen("mkdir "+ temp_dir, shell=True).wait()
         self.__file_dir = cwd + "/" + temp_dir
         os.chdir(prev_wd)
-        self.__quantized_data  = input_class.get()
-        self._problem_type = "distance_metric_learning"
+        self.__quantized_data  = self.__input_class.get()
+        self._problem_type = "clusering"
         self.__input_dm_fh = None
         self.__input_dm_fname = None
         self.__output_dm_fname = None
-        self.__command = (self.bin_path + "/smash")
+        self.__command = (self.__bin_path + "/smash")
         self._output = None
+        self.__input_e = None
 
 
     @property
@@ -70,10 +67,21 @@ class SmashDistanceMatrixLearning(Unsupervised_Series_Learning_Base):
         return self.__bin_path
 
 
+    @property
+    def num_clusters(self):
+        return self.__num_clusters
+
+
     @bin_path.setter
     def bin_path(self, new_bin_path):
-        self.__bin_path = new_bin_path
+        self.__bin_path = os.path.abspath(new_bin_path)
         self.__command = self.__bin_path
+
+
+    @num_clusters.setter
+    def num_clusters(self, new_nclus):
+        assert isinstance(new_nclus, int), "Error: num_clusters must be an int."
+        self.__num_clusters = new_nclus
 
 
     @property
@@ -88,6 +96,33 @@ class SmashDistanceMatrixLearning(Unsupervised_Series_Learning_Base):
         self.__input_class = input_data
         self._data = self.__input_class.data
         self.__quantized_data = self.__input_class.get()
+
+
+    @property
+    def cluster_class(self):
+        return self.__cluster_class
+
+
+    @cluster_class.setter
+    def cluster_class(self, cc):
+        self.__cluster_class = cc
+
+
+    def path_leaf(self, path):
+        '''
+        Helper function:
+        Returns filename from a given path/to/file
+        Taken entirely from Lauritz V. Thaulow on https://stackoverflow.com/questions/8384737
+
+        Input -
+            path (string): path/to/the/file
+
+        Returns -
+            filename (string)
+        '''
+
+        head, tail = ntpath.split(path)
+        return tail or ntpath.basename(head)
 
 
     def write_out_ragged(self, quantized):
@@ -117,10 +152,10 @@ class SmashDistanceMatrixLearning(Unsupervised_Series_Learning_Base):
         wr = csv.writer(self.__input_dm_fh, delimiter=" ")
         wr.writerows(to_write)
         self.__input_dm_fh.close()
-        self.__input_dm_fname = path_leaf(self.__input_dm_fh.name)
+        self.__input_dm_fname = self.path_leaf(self.__input_dm_fh.name)
 
 
-    def run_dm(self, quantized, first_run_dm, max_len=None, num_run_dms=10, details=False):
+    def run_dm(self, quantized, first_run_dm, max_len=None, num_run_dms=5, details=False):
         '''
         Helper function to call bin/smash to compute the distance matrix on the given input
         timeseries and write I/O files necessary for smash
@@ -136,7 +171,7 @@ class SmashDistanceMatrixLearning(Unsupervised_Series_Learning_Base):
 
         if not first_run_dm:
             os.unlink(self.__input_dm_fh.name)
-            self.__command = (self.bin_path + "/smash")
+            self.__command = (self.__bin_path + "/smash")
 
         if not quantized:
             self.write_out_ragged(False)
@@ -201,45 +236,72 @@ class SmashDistanceMatrixLearning(Unsupervised_Series_Learning_Base):
                 return self._output
 
 
-    def fit_transform(self,*arg,**kwds):
-        warnings.warn('Warning: fit_transform method for this class is undefined.')
-        pass
+    def fit_predict(self, ml=None, nr=None, d=False):
+        '''
+        Returns sklearn fit_predict of distance matrix computed by data smashing algorithm
+        and runs sklearn.cluster.KMeans clustering algorithm
+
+        Inputs -
+            ml (int): max length of data to use
+            nr (int): number of runs of smashmatch used to create distance matrix
+            d (boolean): do or do not show cpu usage of smashing algorithms while they run
+
+        Returns -
+            (np.ndarray) Compute cluster centers and predict cluster index from the input
+            data using data smashing and sklearn.manifold.MDS
+        '''
+
+        self.__input_e = self.fit(ml, nr, d)
+        self._output = self.__cluster_class.fit_predict(self.__input_e)
+        return self._output
 
 
-    @abstractmethod
-    def fit_predict(self,*arg,**kwds):
-        warnings.warn('Warning: fit_predict method for this class is undefined.')
-        pass
+    def fit_transform(self, ml=None, nr=None, d=False):
+        '''
+        Returns sklearn fit_transform of distance matrix computed by data smashing algorithm
+        and runs sklearn.cluster.KMeans clustering algorithm
+
+        Inputs -
+            ml (int): max length of data to use
+            nr (int): number of runs of smashmatch used to create distance matrix
+            d (boolean): do or do not show cpu usage of smashing algorithms while they run
+
+        Returns -
+            (np.ndarray) Compute cluster centers and predict cluster index from the input
+            data using data smashing and sklearn.manifold.MDS
+        '''
+
+        self.__input_e = self.fit(ml, nr, d)
+        self._output = self.__cluster_class.fit_transform(self.__input_e)
+        return self._output
 
 
-    @abstractmethod
-    def predict(self,*arg,**kwds):
-        warnings.warn('Warning: predict method for this class is undefined.')
-        pass
+    def predict(self, ml=None, nr=None, d=False):
+        self.__input_e = self.fit(ml, nr, d)
+        self._output = self.__cluster_class.predict(self.__input_e)
+        return self._output
 
 
-    @abstractmethod
     def predict_proba(self,*arg,**kwds):
         warnings.warn('Warning: predict_proba method for this class is undefined.')
         pass
 
 
-    @abstractmethod
     def log_proba(self,*arg,**kwds):
         warnings.warn('Warning: log_proba method for this class is undefined.')
         pass
 
 
-    @abstractmethod
-    def score(self,*arg,**kwds):
-        warnings.warn('Warning: score method for this class is undefined.')
-        pass
+    def score(self, ml=None, nr=None, d=False):
+        self.__input_e = self.fit(ml, nr, d)
+        self._output = self.__cluster_class.score(self.__input_e)
+        return self._output
 
 
-    @abstractmethod
-    def transform(self,*arg,**kwds):
-        warnings.warn('Warning: transform method for this class is undefined.')
-        pass
+    def transform(self, ml=None, nr=None, d=False):
+        self.__input_e = self.fit(ml, nr, d)
+        self._output = self.__cluster_class.transform(self.__input_e)
+        return self._output
 
 
 def cleanup():

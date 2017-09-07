@@ -17,67 +17,35 @@ temp_dir = str(uuid.uuid4())
 temp_dir = temp_dir.replace("-", "")
 
 
-# global helper functions
-def path_leaf(path):
+
+class SmashDistanceMetricLearning(Unsupervised_Series_Learning_Base):
     '''
-    Returns filename from a given path/to/file
-    Taken entirely from Lauritz V. Thaulow on https://stackoverflow.com/questions/8384737
-
-    Input -
-        path (string): path/to/the/file
-
-    Returns -
-        filename (string)
-    '''
-
-    head, tail = ntpath.split(path)
-    return tail or ntpath.basename(head)
-
-
-
-class SmashEmbedding(Unsupervised_Series_Learning_Base):
-    '''
-    Object for run_dmning Smashmatch to calculate the distance matrix between time series
-    and using Sippl and/or sklearn.manifold.MDS to embed
+    Object for running Smashmatch to calculate the distance matrix between time series
 
     Inputs -
         bin_path_(string): Path to smashmatch as a string
         input_class_ (Input Object): Input data
-        n_dim (int): number of dimensions for embedding algorithm calculation
-        MDS_ (sklearn.manifold.MDS): preconfigured primitive to use for embedding comparison
 
     Attributes:
         bin_path (string): path to bin/smash
-        num_dimensions (int): number of dimensions used for embedding
-
-        (Note: bin_path and num_dimensions can be set by assignment, input and quantizer must be
-            set using custom method)
     '''
 
-    def __init__(self, bin_path_, input_class_, n_dim, MDS_=None):
-        self.bin_path = bin_path_
+    def __init__(self, bin_path_, input_class_):
+        self.__bin_path = os.path.abspath(bin_path_)
         self.__input_class = input_class_
-        self._data = input_class.data
-        self.__num_dimensions = n_dim
+        self._data = self.__input_class.data
         prev_wd = os.getcwd()
         os.chdir(cwd)
         sp.Popen("mkdir "+ temp_dir, shell=True).wait()
         self.__file_dir = cwd + "/" + temp_dir
         os.chdir(prev_wd)
-        self.__quantized_data  = input_class.get()
-        self._problem_type = "embedding"
+        self.__quantized_data  = self.__input_class.get()
+        self._problem_type = "distance_metric_learning"
         self.__input_dm_fh = None
         self.__input_dm_fname = None
         self.__output_dm_fname = None
-        self.__command = (self.bin_path + "/smash")
+        self.__command = (self.__bin_path + "/smash")
         self._output = None
-        self.__input_e = None
-        if MDS_ is not None:
-            self._primitive = MDS_
-        else:
-            self._primitive = manifold.MDS(n_components=self.__num_dimensions,metric=True, \
-            n_init=4, max_iter=300, verbose=0, eps=0.001, n_jobs=1, \
-            random_state=None, dissimilarity='precomputed')
 
 
     @property
@@ -85,21 +53,10 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         return self.__bin_path
 
 
-    @property
-    def num_dimensions(self):
-        return self.__num_dimensions
-
-
     @bin_path.setter
     def bin_path(self, new_bin_path):
-        self.__bin_path = new_bin_path
+        self.__bin_path = os.path.abspath(new_bin_path)
         self.__command = self.__bin_path
-
-
-    @num_dimensions.setter
-    def num_dimensions(self, new_ndim):
-        assert isinstance(new_ndim, int), "Error: num_dimensions must be an int."
-        self.__num_dimensions = new_ndim
 
 
     @property
@@ -116,19 +73,21 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         self.__quantized_data = self.__input_class.get()
 
 
-    @property
-    def primitive(self):
-        return self._primitive
+    def path_leaf(self, path):
+        '''
+        Helper function:
+        Returns filename from a given path/to/file
+        Taken entirely from Lauritz V. Thaulow on https://stackoverflow.com/questions/8384737
 
+        Input -
+            path (string): path/to/the/file
 
-    @primitive.setter
-    def primitive(self, prim_):
-        if self.primitive_check(prim_):
-            self._primitive = prim_
+        Returns -
+            filename (string)
+        '''
 
-
-    def primitive_check(dict_):
-        return isinstance(dict_, manifold.MDS)
+        head, tail = ntpath.split(path)
+        return tail or ntpath.basename(head)
 
 
     def write_out_ragged(self, quantized):
@@ -158,10 +117,10 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         wr = csv.writer(self.__input_dm_fh, delimiter=" ")
         wr.writerows(to_write)
         self.__input_dm_fh.close()
-        self.__input_dm_fname = path_leaf(self.__input_dm_fh.name)
+        self.__input_dm_fname = self.path_leaf(self.__input_dm_fh.name)
 
 
-    def run_dm(self, quantized, first_run_dm, max_len=None, num_run_dms=10, details=False):
+    def run_dm(self, quantized, first_run_dm, max_len=None, num_run_dms=5, details=False):
         '''
         Helper function to call bin/smash to compute the distance matrix on the given input
         timeseries and write I/O files necessary for smash
@@ -177,7 +136,7 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
 
         if not first_run_dm:
             os.unlink(self.__input_dm_fh.name)
-            self.__command = (self.bin_path + "/smash")
+            self.__command = (self.__bin_path + "/smash")
 
         if not quantized:
             self.write_out_ragged(False)
@@ -242,110 +201,39 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
                 return self._output
 
 
-    def fit_transform(self, ml=None, nr=None, d=False):
-        '''
-        Fits the data by calculating the Data Smashing distance matrix and then transforms
-        the resulting embedded coordinates
-
-        Inputs -
-            ml (int): max length of data to use
-            nr (int): number of runs of smashmatch used to create distance matrix
-            d (boolean): do or do not show cpu usage of smashing algorithms while they run
-
-        Outuputs -
-            (numpy.ndarray) the embedded coordinates of the input data using Sippl Embedding
-            (shape num_timeseries x num_dimensions)
-        '''
-
-        self.__input_e = self.fit(ml, nr, d)
-        # since you run fit, the assumption can read in from the file you wrote out to in fit
-        # i.e. self.__output_dm_fname is the name for the input
-
-        prev_wd = os.getcwd()
-        os.chdir(self.__file_dir)
-        command = (self.bin_path + "/embed -f ")
-
-        if os.path.isfile(self.__output_dm_fname):
-            command += self.__output_dm_fname
-        else: # should be impossible
-            print("Smash Embedding encountered an error. Please try again.")
-            sys.exit(1)
-
-        if not d:
-            command += "-t 0"
-        sp.Popen(command, shell=True).wait()
-
-        try:
-            sippl_embed = np.loadtxt(fname="outE.txt", dtype=float)
-            if self.__num_dimensions > sippl_embed.shape[1]:
-                raise ValueError("Error: Number of dimensions specified \
-                greater than dimensions of input data")
-            sippl_feat = sippl_embed[:, :self.__num_dimensions]
-            os.chdir(prev_wd)
-            self._output = sippl_feat
-            return self._output
-        except IOError:
-            print "Error: Embedding unsuccessful. Please try again."
+    def fit_transform(self,*arg,**kwds):
+        warnings.warn('Warning: fit_transform method for this class is undefined.')
+        pass
 
 
-    @abstractmethod
     def fit_predict(self,*arg,**kwds):
         warnings.warn('Warning: fit_predict method for this class is undefined.')
         pass
 
 
-    @abstractmethod
     def predict(self,*arg,**kwds):
         warnings.warn('Warning: predict method for this class is undefined.')
         pass
 
 
-    @abstractmethod
     def predict_proba(self,*arg,**kwds):
         warnings.warn('Warning: predict_proba method for this class is undefined.')
         pass
 
 
-    @abstractmethod
     def log_proba(self,*arg,**kwds):
         warnings.warn('Warning: log_proba method for this class is undefined.')
         pass
 
 
-    @abstractmethod
     def score(self,*arg,**kwds):
         warnings.warn('Warning: score method for this class is undefined.')
         pass
 
 
-    @abstractmethod
     def transform(self,*arg,**kwds):
         warnings.warn('Warning: transform method for this class is undefined.')
         pass
-
-
-    def sklearn_MDS_embed(self, ml=None, nr=None, d=False, init_=None):
-        '''
-        Returns sklearn fit_transform of distance matrix computed by data smashing algorithm
-
-        Inputs -
-            ml (int): max length of data to use
-            nr (int): number of runs of smashmatch used to create distance matrix
-            d (boolean): do or do not show cpu usage of smashing algorithms while they run
-            metric -> dissimilarity (various): parameters of the sklearn.manifold.MDS class
-            y and init (numpy.ndarray): parameters for the fit_transform
-                sklearn.manifold.MDS method
-
-        Returns -
-            (np.ndarray) the embedded coordinates from the input data using
-                data smashing and sklearn.manifold.MDS (shape num_timeseries x num_dimensions)
-        '''
-
-        self.__input_e = self.fit(ml, nr, d)
-        if self._data_additional is not None:
-            y_ = self._data_additional.data
-        self._output = self._primitive.fit_transform(self.__input_e, y_, init_)
-        return self._output
 
 
 def cleanup():
