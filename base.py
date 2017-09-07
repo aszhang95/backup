@@ -1,9 +1,9 @@
-import abc
+from abc import ABCMeta
 
 
-class PrimitiveBase(abc.ABCMeta):
+class PrimitiveBase(object):
     """
     A base class for all TA1 primitives.
     """
 
-    # __metaclass__ = abc.ABCMeta
+    __metaclass__ = ABCMeta
