@@ -1,18 +1,19 @@
 import abc
-
-from . import base
-
-__all__ = ('SupervisedLearningPrimitiveBase',)
+from base import PrimitiveBase
 
 
-class SupervisedLearningPrimitiveBase(base.PrimitiveBase):
+__all__ = ('SupervisedLearningPrimitiveBase')
+
+
+
+class SupervisedLearningPrimitiveBase(PrimitiveBase):
     def __init__(self):
         """
         Initializes the supervised learning primitive.
 
         All primitives should specify all the hyper-parameters that can be set at the class
         level in their ``__init__`` as explicit keyword arguments (no ``*args`` or ``**kwargs``).
-        Available hyper-parameters should be specified in primitive’s D3M annotation.
+        Available hyper-parameters should be specified in primitive's D3M annotation.
         """
 
     @abc.abstractmethod
@@ -28,7 +29,7 @@ class SupervisedLearningPrimitiveBase(base.PrimitiveBase):
         the first call to ``fit``.
 
         Subclasses can accept custom additional but explicitly defined keyword arguments,
-        which should be specified in primitive’s D3M annotation.
+        which should be specified in primitive's D3M annotation.
 
         Parameters
         ----------

@@ -3,7 +3,7 @@ import subprocess as sp
 import numpy as np
 from numpy import nan
 import pandas as pd
-from SupervisedLearningPrimitiveBase import *
+import SupervisedLearningPrimitiveBase
 
 
 
@@ -35,10 +35,11 @@ class LibFile:
 
 
 
-class SmashMatchClassification(SupervisedLearningPrimitiveBase):
+# class SmashMatchClassification(SupervisedLearningPrimitiveBase):
+class SmashMatchClassification():
     '''
     Object for SmashMatch-based classification; modeled after sklearn.SVM.SVC classifier and using
-    D3M SupervisedLearningPrimitiveBase API specifications
+    SupervisedLearningPrimitiveBase API specifications
 
     Inputs -
         bin_path_(string): Path to smashmatch as a string
@@ -56,7 +57,7 @@ class SmashMatchClassification(SupervisedLearningPrimitiveBase):
         self.__bin_path = os.path.abspath(bin_path_)
         prev_wd = os.getcwd()
         os.chdir(cwd)
-        sp.Popen("mkdir "+ temp_dir, shell=True).wait()
+        sp.Popen("mkdir "+ temp_dir, shell=True, stderr=sp.STDOUT).wait()
         self.__file_dir = cwd + "/" + temp_dir
         os.chdir(prev_wd)
         self.__classes = []
@@ -473,7 +474,7 @@ class SmashMatchClassification(SupervisedLearningPrimitiveBase):
                 self.__command += " -t 0"
 
             os.chdir(self.__file_dir)
-            sp.Popen(self.__command, shell=True).wait()
+            sp.Popen(self.__command, shell=True, stderr=sp.STDOUT).wait()
             os.chdir(cwd)
 
             if not self.has_smashmatch(): # should theoretically be impossible \
@@ -492,8 +493,8 @@ class SmashMatchClassification(SupervisedLearningPrimitiveBase):
         '''
 
         os.chdir(self.__file_dir)
-        sp.Popen("rm input_*", shell=True).wait()
-        sp.Popen("rm " + prefix + "*", shell=True).wait()
+        sp.Popen("rm input_*", shell=True, stderr=sp.STDOUT).wait()
+        sp.Popen("rm " + prefix + "*", shell=True, stderr=sp.STDOUT).wait()
         self.__command = self.__bin_path
         os.chdir(cwd)
 
@@ -717,7 +718,7 @@ class SmashMatchClassification(SupervisedLearningPrimitiveBase):
         '''
 
         os.chdir(self.__file_dir)
-        sp.Popen("rm lib_*", shell=True).wait()
+        sp.Popen("rm lib_*", shell=True, stderr=sp.STDOUT).wait()
         os.chdir(cwd)
         self.__classes = []
         self.__lib_files = []
@@ -735,12 +736,9 @@ def cleanup():
     os.chdir(cwd)
     if os.path.exists(cwd + "/" + temp_dir):
         command = "rm -r " + cwd + "/" + temp_dir
-        sp.Popen(command, shell=True).wait()
+        sp.Popen(command, shell=True, stderr=sp.STDOUT).wait()
     os.chdir(prev_wd)
 
-    # sp.Popen("rm tmp*", shell=True).wait()
-    # if prefix != "" and prefix is not None:
-    #     sp.Popen("rm " + prefix + "*", shell=True).wait()
 
 
 atexit.register(cleanup)

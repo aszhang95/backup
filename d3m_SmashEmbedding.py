@@ -44,7 +44,7 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         self.__num_dimensions = n_dim
         prev_wd = os.getcwd()
         os.chdir(cwd)
-        sp.Popen("mkdir "+ temp_dir, shell=True).wait()
+        sp.Popen("mkdir "+ temp_dir, shell=True, stderr=sp.STDOUT).wait()
         self.__file_dir = cwd + "/" + temp_dir
         os.chdir(prev_wd)
         self.__quantized_data  = self.__input_class.get()
@@ -178,7 +178,7 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
 
         prev_wd = os.getcwd()
         os.chdir(self.__file_dir)
-        sp.Popen(self.__command, shell=True).wait()
+        sp.Popen(self.__command, shell=True, stderr=sp.STDOUT).wait()
         os.chdir(prev_wd)
 
         try:
@@ -255,7 +255,11 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
                 print("Smash Embedding encountered an error. Please try again.")
                 sys.exit(1)
 
-            sp.Popen(command, shell=True).wait()
+            if not d:
+                FNULL = open(os.devnull, 'w')
+                sp.Popen(command, shell=True, stdout=FNULL, stderr=sp.STDOUT, close_fds=True).wait()
+            else:
+                sp.Popen(command, shell=True, stderr=sp.STDOUT).wait()
 
             try:
                 sippl_embed = np.loadtxt(fname="outE.txt", dtype=float)
@@ -268,28 +272,33 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
                 return self._output
             except IOError or IndexError:
                 print "Error: Embedding unsuccessful. Please try again."
-            else:
-                self.__input_e = self.__input_e.astype(np.float64)
+        else:
+            self.__input_e = self.__input_e.astype(np.float64)
+            try:
+
                 try:
-                    try:
-                        y_ = self._data_additional.data
-                    except AttributeError:
-                        y_ = None
-                    self._output = self._primitive.fit_transform(self.__input_e, y_, init_)
+                    y_ = self._data_additional.data
+                except AttributeError:
+                    y_ = None
+
+                self._output = embedder.fit_transform(self.__input_e, y_, init)
+                return self._output
+
+            except ValueError:
+                self.__input_e = self.__input_e + self.__input_e.T
+
+                try:
+                    y_ = self._data_additional.data
+                except AttributeError:
+                    y_ = None
+
+                try:
+                    self._output = embedder.fit_transform(self.__input_e, y_, init)
                     return self._output
-                except ValueError:
-                    try:
-                        self.__input_e = self.__input_e + self.__input_e.T
-                        try:
-                            y_ = self._data_additional.data
-                        except AttributeError:
-                            y_ = None
-                        self._output = self._primitive.fit_transform(self.__input_e, y_, init_)
-                        return self._output
-                    except:
-                        warnings.warn("Embedding error: please ensure input embedding class handles \
-                        distance matrix input to embed")
-                        return None
+                except:
+                    warnings.warn("Embedding error: please ensure input embedding class handles \
+                    distance matrix input to embed")
+                    return None
 
 
     def fit_predict(self,*arg,**kwds):
@@ -332,7 +341,7 @@ def cleanup():
     os.chdir(cwd)
     if os.path.exists(cwd + "/" + temp_dir):
         command = "rm -r " + cwd + "/" + temp_dir
-        sp.Popen(command, shell=True).wait()
+        sp.Popen(command, shell=True, stderr=sp.STDOUT).wait()
     os.chdir(prev_wd)
 
 

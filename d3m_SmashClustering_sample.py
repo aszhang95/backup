@@ -7,7 +7,7 @@ bin_path = "../bin"
 
 # Reading in data from deploy_scripts/examples/data.dat and setting dtype=np.int32
 # because this input data is categorical
-X = read_in_series("../deploy_scripts/examples/data.dat", delimiter=" ").values.astype(np.int32)
+X = read_series("../deploy_scripts/examples/data.dat", delimiter=" ").values.astype(np.int32)
 
 # define quantizer function
 def q(x):

@@ -1,5 +1,10 @@
 # d3m_series_util
 
+import pandas as pd
+from numpy import nan
+
+
+
 def read_series(filename, delimiter, datatype=None):
     '''
     Helper method:
@@ -20,7 +25,7 @@ def read_series(filename, delimiter, datatype=None):
     with open(filename, 'r') as f:
         for line in f:
             formatted_row = []
-            row = line.strip().split(delimiter_)
+            row = line.strip().split(delimiter)
             if row[-1] == "":
                 row = row[:-1]
             row_len = len(row)

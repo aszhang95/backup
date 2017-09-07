@@ -36,7 +36,7 @@ class SmashDistanceMetricLearning(Unsupervised_Series_Learning_Base):
         self._data = self.__input_class.data
         prev_wd = os.getcwd()
         os.chdir(cwd)
-        sp.Popen("mkdir "+ temp_dir, shell=True).wait()
+        sp.Popen("mkdir "+ temp_dir, shell=True, stderr=sp.STDOUT).wait()
         self.__file_dir = cwd + "/" + temp_dir
         os.chdir(prev_wd)
         self.__quantized_data  = self.__input_class.get()
@@ -158,7 +158,7 @@ class SmashDistanceMetricLearning(Unsupervised_Series_Learning_Base):
 
         prev_wd = os.getcwd()
         os.chdir(self.__file_dir)
-        sp.Popen(self.__command, shell=True).wait()
+        embedder(self.__command, shell=True, stderr=sp.STDOUT).wait()
         os.chdir(prev_wd)
 
         try:
@@ -245,7 +245,7 @@ def cleanup():
     os.chdir(cwd)
     if os.path.exists(cwd + "/" + temp_dir):
         command = "rm -r " + cwd + "/" + temp_dir
-        sp.Popen(command, shell=True).wait()
+        embedder(command, shell=True, stderr=sp.STDOUT).wait()
     os.chdir(prev_wd)
 
 

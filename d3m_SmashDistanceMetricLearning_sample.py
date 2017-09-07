@@ -23,7 +23,7 @@ preproc=q, force_vect_preproc=True)
 
 
 # create SmashDistanceMatrixLearning class to run methods
-dmlc = SmashEmbedding(bin_path_=bin_path, input_class_=data_class)
+dmlc = SmashDistanceMetricLearning(bin_path_=bin_path, input_class_=data_class)
 
 # return distance matrix of input timeseries data (repeat calculation 3 times)
 print(dmlc.fit(nr=3))
