@@ -1,7 +1,7 @@
-# start from working directory of where cw8 is located
+# start from working directory of where SmashMatchClassification is located
 from d3m_SmashMatchClassification import *
 
-# Classification of TEST0 from ../data_small using Smashmatch
+# Classification of TEST0 from ../data_small using SmashMatch
 bin_path = "../bin/smashmatch"
 
 # define quantizer function
@@ -36,7 +36,7 @@ clf.fit(X, y)
 # quantize and read in the timeseries data to be classified as pd.DataFrame
 data = clf.read_series("../data_small/TEST0", delimiter_=" ", quantize=True)
 
-# run predict twice, and print the results
+# run algorithm twice, and print the results
 print(clf.predict(data, nr=2))
 
 # get the log probabilities for each timeseries to fall in each class,

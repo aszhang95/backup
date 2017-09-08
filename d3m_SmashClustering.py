@@ -20,31 +20,32 @@ temp_dir = temp_dir.replace("-", "")
 
 class SmashClustering(Unsupervised_Series_Learning_Base):
     '''
-    Object for run_dmning Smashmatch to calculate the distance matrix between time series
-    and using Sippl and/or sklearn.manifold.MDS to embed
+    Object for running Data Smashing to calculate the distance matrix between n
+        timeseries and using sklearn.cluster classes to cluster;
+        inherits from Unsupervised_Series_Learning_Base API
 
     Inputs -
-        bin_path_(string): Path to smashmatch as a string
-        quantiziation (function): quantization function for time series data
+        bin_path_(string): Path to Smash binary as a string
+        quantiziation (function): quantization function for input timeseries
+            data
 
     Attributes:
         bin_path (string): path to bin/smash
         quantizer (function): function to quantify input data
-        quantized input (numpy.ndarray or pd.DataFrame) the transformed input data if
-            quantizer function is specified
         num_dimensions (int): number of dimensions used for embedding
 
-        (Note: bin_path and num_dimensions can be set by assignment, input and quantizer must be
-            set using custom method)
+        (Note: bin_path and num_dimensions can be set by assignment,
+        input and quantizer must be set using custom method)
     '''
 
-    def __init__(self, bin_path_, input_class_, n_clus, cluster_class=None):
+    def __init__(self, bin_path_, input_class_, n_clus=8, cluster_class=None):
         self.__bin_path = os.path.abspath(bin_path_)
         self.__input_class = input_class_
         self._data = self.__input_class.data
         self.__num_clusters = n_clus
         if cluster_class is None:
-            self.__cluster_class = cluster.KMeans(n_clusters=self.__num_clusters)
+            self.__cluster_class = cluster.KMeans(n_clusters=\
+            self.__num_clusters)
         else:
             self.__cluster_class = cluster_class
         prev_wd = os.getcwd()
@@ -58,7 +59,6 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
         self.__input_dm_fname = None
         self.__output_dm_fname = None
         self.__command = (self.__bin_path + "/smash")
-        self._output = None
         self.__input_e = None
 
 
@@ -112,7 +112,7 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
         '''
         Helper function:
         Returns filename from a given path/to/file
-        Taken entirely from Lauritz V. Thaulow on https://stackoverflow.com/questions/8384737
+            Taken entirely from Lauritz V. Thaulow on https://stackoverflow.com/questions/8384737
 
         Input -
             path (string): path/to/the/file
@@ -125,13 +125,15 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
         return tail or ntpath.basename(head)
 
 
-    def write_out_ragged(self, quantized):
+    def write_series(self, quantized):
         '''
-        Helper function that writes out pd.DataFrame to file in the \
-        temporary directory for the class
+        Helper function:
+        Writes out input numpy.ndarray to file to interface with Data Smashing
+            binary
 
         Inputs -
-            quantized (boolean): use quantized data or original data
+            quantized (boolean): use quantized data (True) or original data
+                (False)
 
         Outputs -
             (None)
@@ -148,25 +150,31 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
         for row in data:
             to_write.append( [int(x) for x in row if not np.isnan(x)] )
 
-        self.__input_dm_fh = tempfile.NamedTemporaryFile(dir=self.__file_dir, delete=False)
+        self.__input_dm_fh = tempfile.NamedTemporaryFile(dir=self.__file_dir, \
+        delete=False)
         wr = csv.writer(self.__input_dm_fh, delimiter=" ")
         wr.writerows(to_write)
         self.__input_dm_fh.close()
         self.__input_dm_fname = self.path_leaf(self.__input_dm_fh.name)
 
 
-    def run_dm(self, quantized, first_run_dm, max_len=None, num_run_dms=5, details=False):
+    def run_dm(self, quantized, first_run_dm, \
+    max_len=None, num_run_dms=5, details=False):
         '''
-        Helper function to call bin/smash to compute the distance matrix on the given input
-        timeseries and write I/O files necessary for smash
+        Helper function:
+        Calls bin/smash to compute the distance matrix on the given input
+        timeseries and write I/O files necessary for Data Smashing
 
         Inputs -
-            ml (int): max length of data to use
-            nr (int): number of runs of smashmatch used to create distance matrix
-            d (boolean): do or do not show cpu usage of smashing algorithms while they run
+            max_len (int): max length of data to use
+            num_run_dms (int): number of runs of Smash to compute distance
+                matrix (refines results)
+            details (boolean): do (True) or do not (False) show cpu usage of
+                Data Smashing algorithm
 
         Outuputs -
-            (numpy.ndarray) distance matrix of the input timeseries (shape n_samples x n_samples)
+            (numpy.ndarray) distance matrix of the input timeseries
+            (shape n_samples x n_samples)
         '''
 
         if not first_run_dm:
@@ -174,9 +182,9 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
             self.__command = (self.__bin_path + "/smash")
 
         if not quantized:
-            self.write_out_ragged(False)
+            self.write_series(False)
         else:
-            self.write_out_ragged(True)
+            self.write_series(True)
 
         self.__command += " -f " + self.__input_dm_fname + " -D row -T symbolic"
 
@@ -197,115 +205,136 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
         os.chdir(prev_wd)
 
         try:
-            results = np.loadtxt(fname=(self.__file_dir +"/"+self.__output_dm_fname), dtype=float)
+            results = np.loadtxt(\
+            fname=(self.__file_dir+"/"+self.__output_dm_fname), dtype=float)
             return results
         except IOError:
             print "Error: Smash calculation unsuccessful. Please try again."
 
 
-    def fit(self, ml=None, nr=None, d=False):
+    def fit(self, ml=None, nr=None, d=False, y=None):
         '''
-        Uses Data Smashing to compute the distance matrix of the input time series
+        Uses Data Smashing to compute the distance matrix of the input time
+        series and fit Data Smashing output to clustering class
 
         Inputs -
             ml (int): max length of data to use
-            nr (int): number of runs of smashmatch used to create distance matrix
-            d (boolean): do or do not show cpu usage of smashing algorithms while they run
+            nr (int): number of runs of Smash to compute distance matrix
+                (refines results)
+            d (boolean): do (True) or do not (False) show cpu usage of Smash
+                algorithm
+            y (numpy.ndarray): labels for fit method of user-defined
+                clustering_class
 
         Outuputs -
-            (numpy.ndarray) distance matrix of the input timeseries (shape n_samples x n_samples)
+            (numpy.ndarray) distance matrix of the input timeseries
+            (shape n_samples x n_samples)
         '''
 
         if self.__quantized_data is None: # no checks because assume data was pre-processed in Input
             if np.issubdtype(self._data .dtype, float):
-                raise ValueError("Error: input to Smashing algorithm cannot be of type float; \
+                raise ValueError(\
+                "Error: input to Smashing algorithm cannot be of type float; \
                 data not properly quantized .")
             else:
                 if self.__input_dm_fh is None:
                     self._output = self.run_dm(False, True, ml, nr, d)
+                    self.__cluster_class.fit(self._output. y)
                     return self._output
                 else:
                     self._output = self.run_dm(False, False, ml, nr, d)
+                    self.__cluster_class.fit(self._output, y)
                     return self._output
         else:
             if self.__input_dm_fh is None:
                 self._output = self.run_dm(True, True, ml, nr, d)
+                self.__cluster_class.fit(self._output)
                 return self._output
             else:
                 self._output = self.run_dm(True, False, ml, nr, d)
+                self.__cluster_class.fit(self._output)
                 return self._output
 
 
-    def fit_predict(self, ml=None, nr=None, d=False):
+    def fit_predict(self, ml=None, nr=None, d=False, y=None):
         '''
-        Returns sklearn fit_predict of distance matrix computed by data smashing algorithm
-        and runs sklearn.cluster.KMeans clustering algorithm
+        Returns output sklearn/clustering_class' fit_predict on distance matrix
+        computed by Data Smashing algorithm and input y
 
         Inputs -
             ml (int): max length of data to use
-            nr (int): number of runs of smashmatch used to create distance matrix
-            d (boolean): do or do not show cpu usage of smashing algorithms while they run
+            nr (int): number of runs of Smash to compute distance matrix
+                (refines results)
+            d (boolean): do (True) or do not (False) show cpu usage of Smash
+                algorithm
 
         Returns -
-            (np.ndarray) Compute cluster centers and predict cluster index from the input
-            data using data smashing and sklearn.manifold.MDS
+            (np.ndarray) Computed cluster centers and predict cluster index
+                from the input  using Data Smashing and sklearn cluster_class
         '''
 
         self.__input_e = self.fit(ml, nr, d)
-        self._output = self.__cluster_class.fit_predict(self.__input_e)
+        self._output = self.__cluster_class.fit_predict(self.__input_e, y)
         return self._output
 
 
-    def fit_transform(self, ml=None, nr=None, d=False):
-        '''
-        Returns sklearn fit_transform of distance matrix computed by data smashing algorithm
-        and runs sklearn.cluster.KMeans clustering algorithm
-
-        Inputs -
-            ml (int): max length of data to use
-            nr (int): number of runs of smashmatch used to create distance matrix
-            d (boolean): do or do not show cpu usage of smashing algorithms while they run
-
-        Returns -
-            (np.ndarray) Compute cluster centers and predict cluster index from the input
-            data using data smashing and sklearn.manifold.MDS
-        '''
-
-        self.__input_e = self.fit(ml, nr, d)
-        self._output = self.__cluster_class.fit_transform(self.__input_e)
-        return self._output
+    def fit_transform(self, ml=None, nr=None, d=False, y=None):
+        warnings.warn(\
+        'Warning: "fit_transform" method for this class is undefined.')
+        pass
 
 
     def predict(self, ml=None, nr=None, d=False):
+        '''
+        Returns output sklearn/clustering_class' predict on distance matrix
+        computed by Data Smashing algorithm
+
+        Inputs -
+            ml (int): max length of data to use
+            nr (int): number of runs of Smash to compute distance matrix
+                (refines results)
+            d (boolean): do (True) or do not (False) show cpu usage of Smash
+                algorithm
+
+        Returns -
+            (np.ndarray) Computed cluster centers and predict cluster index
+                from the input data using data smashing and
+                sklearn cluster_class
+        '''
+
         self.__input_e = self.fit(ml, nr, d)
         self._output = self.__cluster_class.predict(self.__input_e)
         return self._output
 
 
     def predict_proba(self,*arg,**kwds):
-        warnings.warn('Warning: predict_proba method for this class is undefined.')
+        warnings.warn(\
+        'Warning: "predict_proba" method for this class is undefined.')
         pass
 
 
     def log_proba(self,*arg,**kwds):
-        warnings.warn('Warning: log_proba method for this class is undefined.')
+        warnings.warn(\
+        'Warning: "log_proba" method for this class is undefined.')
         pass
 
 
-    def score(self, ml=None, nr=None, d=False):
-        self.__input_e = self.fit(ml, nr, d)
-        self._output = self.__cluster_class.score(self.__input_e)
-        return self._output
+    def score(self,*arg,**kwds):
+        warnings.warn(\
+        'Warning: "score" method for this class is undefined.')
+        pass
 
 
-    def transform(self, ml=None, nr=None, d=False):
-        self.__input_e = self.fit(ml, nr, d)
-        self._output = self.__cluster_class.transform(self.__input_e)
-        return self._output
+    def transform(self,*arg,**kwds):
+        warnings.warn(\
+        'Warning: "transform" method for this class is undefined.')
+        pass
+
 
 
 def cleanup():
     '''
+    Maintenance method:
     Clean up library files before closing the script; no I/O
     '''
 

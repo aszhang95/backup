@@ -22,31 +22,19 @@ data_class = Input(data=X, is_categorical=True, is_synchronized=True,\
 preproc=q, force_vect_preproc=True)
 
 
-# decide now many clusters to predict
-num_clusters = 4
-
 # instantiate clustering class to be used to cluster distance matrix data
 # if not specified, default is cluster.KMeans
-kmeans_cc = cluster.KMeans(n_clusters=num_clusters)
+meanshift_cc = cluster.MeanShift()
 
-# create SmashClustering class to run methods (require 4 clusters)
-# create sklearn.cluster.KMeans class with defaults since instance given
-scc = SmashClustering(bin_path_=bin_path, input_class_=data_class, n_clus=num_clusters)
+# instantiate clustering class
+# default cluster_class is sklearn.cluster.KMeans and num_cluster default is 8
+scc = SmashClustering(bin_path_=bin_path, input_class_=data_class, cluster_class=meanshift_cc)
 
-# return distance matrix of input timeseries data (repeat calculation 3 times)
+# fit and return distance matrix of input timeseries data (repeat calculation 3 times)
 print(scc.fit(nr=3))
 
-# standard sklearn.cluster.KMeans.fit_predict operation on the distance matrix
+# call clustering class predict method on fitted input data
+print(scc.predict(nr=3))
+
+# can also call fit_predict for convenience (note: distance matrix will be recalculated)
 print(scc.fit_predict(nr=3))
-
-# standard sklearn.cluster.KMeans.fit_transform operation on the distance matrix
-print(scc.fit_transform(nr=3))
-
-# standard sklearn.cluster.KMeans.predict operation on the distance matrix
-print(scc.predict(nr=2))
-
-#standard sklearn.cluster.KMeans.score operation on the distance matrix
-print(scc.score(nr=2))
-
-# standard sklearn.cluster.KMeans.transform operation on the distance matrix
-print(scc.transform(nr=2))

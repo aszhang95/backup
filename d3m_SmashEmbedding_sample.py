@@ -1,3 +1,4 @@
+# import relevant libraries
 from d3m_SmashEmbedding import *
 from d3m_series_util import *
 from sklearn import manifold
@@ -27,8 +28,7 @@ sec = SmashEmbedding(bin_path_=bin_path, input_class_=data_class, n_dim=2)
 # return distance matrix of input timeseries data (repeat calculation 3 times)
 print(sec.fit(nr=3))
 
-# return embedded coordinates using Sippl embedding on distance matrix
-# default embedder when no embedder class passed to the embedder parameter
+# return embedded coordinates using Sippl embedding (default) on distance matrix
 print(sec.fit_transform(nr=3))
 
 # use other embedding function to embed the data e.g. sklearn.manifold.MDS

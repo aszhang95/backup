@@ -20,21 +20,18 @@ temp_dir = temp_dir.replace("-", "")
 
 class SmashEmbedding(Unsupervised_Series_Learning_Base):
     '''
-    Object for run_dmning Smashmatch to calculate the distance matrix between time series
-    and using Sippl and/or sklearn.manifold.MDS to embed
+    Object for running Data Smashing to calculate the distance matrix between
+        timeseries and using Sippl and/or sklearn.manifold.MDS to embed;
+        inherits from the Unsupervised_Series_Learning_Base API
 
     Inputs -
-        bin_path_(string): Path to smashmatch as a string
+        bin_path_(string): Path to Data Smashing binary as a string
         input_class_ (Input Object): Input data
-        n_dim (int): number of dimensions for embedding algorithm calculation
-        MDS_ (sklearn.manifold.MDS): preconfigured primitive to use for embedding comparison
+        n_dim (int): number of dimensions for embedding algorithm
 
     Attributes:
         bin_path (string): path to bin/smash
-        num_dimensions (int): number of dimensions used for embedding
-
-        (Note: bin_path and num_dimensions can be set by assignment, input and quantizer must be
-            set using custom method)
+        num_dimensions (int): number of dimensions to use for embedding
     '''
 
     def __init__(self, bin_path_, input_class_, n_dim):
@@ -75,7 +72,8 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
 
     @num_dimensions.setter
     def num_dimensions(self, new_ndim):
-        assert isinstance(new_ndim, int), "Error: num_dimensions must be an int."
+        assert isinstance(new_ndim, int), \
+        "Error: num_dimensions must be an int."
         self.__num_dimensions = new_ndim
 
 
@@ -97,7 +95,8 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         '''
         Helper function:
         Returns filename from a given path/to/file
-        Taken entirely from Lauritz V. Thaulow on https://stackoverflow.com/questions/8384737
+        Taken entirely from Lauritz V. Thaulow on
+        https://stackoverflow.com/questions/8384737
 
         Input -
             path (string): path/to/the/file
@@ -112,11 +111,13 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
 
     def write_out_ragged(self, quantized):
         '''
-        Helper function that writes out pd.DataFrame to file in the \
-        temporary directory for the class
+        Helper function:
+        Writes out input numpy.ndarray to file to interface with Data Smashing
+            binary
 
         Inputs -
-            quantized (boolean): use quantized data or original data
+            quantized (boolean): use quantized data (True) or original data
+                (False)
 
         Outputs -
             (None)
@@ -140,18 +141,23 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         self.__input_dm_fname = self.path_leaf(self.__input_dm_fh.name)
 
 
-    def run_dm(self, quantized, first_run_dm, max_len=None, num_run_dms=5, details=False):
+    def run_dm(self, quantized, first_run_dm, max_len=None, \
+    num_run_dms=5, details=False):
         '''
-        Helper function to call bin/smash to compute the distance matrix on the given input
-        timeseries and write I/O files necessary for smash
+        Helper function:
+        Calls bin/smash to compute the distance matrix on the given input
+        timeseries and write I/O files necessary for Data Smashing
 
         Inputs -
-            ml (int): max length of data to use
-            nr (int): number of runs of smashmatch used to create distance matrix
-            d (boolean): do or do not show cpu usage of smashing algorithms while they run
+            max_len (int): max length of data to use
+            num_run_dms (int): number of runs of Smash to compute distance
+                matrix (refines results)
+            details (boolean): do (True) or do not (False) show cpu usage of
+                Data Smashing algorithm
 
         Outuputs -
-            (numpy.ndarray) distance matrix of the input timeseries (shape n_samples x n_samples)
+            (numpy.ndarray) distance matrix of the input timeseries
+            (shape n_samples x n_samples)
         '''
 
         if not first_run_dm:
@@ -190,21 +196,25 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
 
     def fit(self, ml=None, nr=None, d=False):
         '''
-        Uses Data Smashing to compute the distance matrix of the input time series
+        Uses Data Smashing to compute the distance matrix of the timeseries
 
         Inputs -
             ml (int): max length of data to use
-            nr (int): number of runs of smashmatch used to create distance matrix
-            d (boolean): do or do not show cpu usage of smashing algorithms while they run
+            nr (int): number of runs of Smash to compute distance matrix
+                (refines results)
+            d (boolean): do (True) or do not (False) show cpu usage of Data
+            Smashing algorithm
 
         Outuputs -
-            (numpy.ndarray) distance matrix of the input timeseries (shape n_samples x n_samples)
+            (numpy.ndarray) distance matrix of the input timeseries
+            (shape n_samples x n_samples)
         '''
 
         if self.__quantized_data is None: # no checks because assume data was pre-processed in Input
             if np.issubdtype(self._data .dtype, float):
-                raise ValueError("Error: input to Smashing algorithm cannot be of type float; \
-                data not properly quantized .")
+                raise ValueError(\
+                "Error: input to Smashing algorithm cannot be of type float;\
+                data not properly quantized.")
             else:
                 if self.__input_dm_fh is None:
                     self._output = self.run_dm(False, True, ml, nr, d)
@@ -221,22 +231,25 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
                 return self._output
 
 
-    def fit_transform(self, ml=None, nr=None, d=False, embedder=None, init=None):
+    def fit_transform(self, ml=None, nr=None, d=False, \
+    embedder=None, init=None):
         '''
-        Fits the data by calculating the Data Smashing distance matrix and then transforms
+        Computes Data Smashing distance matrix and returns
         the resulting embedded coordinates
 
         Inputs -
             ml (int): max length of data to use
-            nr (int): number of runs of smashmatch used to create distance matrix
-            d (boolean): do or do not show cpu usage of smashing algorithms while they run
-            embedder (instance of embedding class that embeds distance matrices with \
-                fit_transform function) e.g. sklearn.manifold.MDS
-            y and init (numpy.ndarray): parameters for the fit_transform method within
-                sklearn.embedding classes
+            nr (int): number of runs of Smash to compute distance matrix
+                (refines results)
+            d (boolean): do (True) or do not (False) show cpu usage of Smash
+                algorithm
+            embedder (instance of embedding class that embeds distance matrices
+                with fit_transform function) e.g. sklearn.manifold.MDS
+            y and init (numpy.ndarray): parameters for the fit_transform method
+                of sklearn.embedding classes
 
         Outuputs -
-            (numpy.ndarray) the embedded coordinates of the input data using Sippl Embedding
+            (numpy.ndarray) the embedded coordinates of the input data
             (shape num_timeseries x num_dimensions)
         '''
 
@@ -257,7 +270,8 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
 
             if not d:
                 FNULL = open(os.devnull, 'w')
-                sp.Popen(command, shell=True, stdout=FNULL, stderr=sp.STDOUT, close_fds=True).wait()
+                sp.Popen(command, shell=True, stdout=FNULL, stderr=sp.STDOUT,\
+                 close_fds=True).wait()
             else:
                 sp.Popen(command, shell=True, stderr=sp.STDOUT).wait()
 
@@ -293,31 +307,37 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
                     y_ = None
 
                 try:
-                    self._output = embedder.fit_transform(self.__input_e, y_, init)
+                    self._output = embedder.fit_transform(self.__input_e, y_,\
+                    init)
                     return self._output
                 except:
-                    warnings.warn("Embedding error: please ensure input embedding class handles \
-                    distance matrix input to embed")
+                    warnings.warn(\
+                    "Embedding error: please ensure input embedding class takes\
+                    distance matrices as input.")
                     return None
 
 
     def fit_predict(self,*arg,**kwds):
-        warnings.warn('Warning: fit_predict method for this class is undefined.')
+        warnings.warn(\
+        'Warning: fit_predict method for this class is undefined.')
         pass
 
 
     def predict(self,*arg,**kwds):
-        warnings.warn('Warning: predict method for this class is undefined.')
+        warnings.warn(\
+        'Warning: predict method for this class is undefined.')
         pass
 
 
     def predict_proba(self,*arg,**kwds):
-        warnings.warn('Warning: predict_proba method for this class is undefined.')
+        warnings.warn(\
+        'Warning: predict_proba method for this class is undefined.')
         pass
 
 
     def log_proba(self,*arg,**kwds):
-        warnings.warn('Warning: log_proba method for this class is undefined.')
+        warnings.warn(\
+        'Warning: log_proba method for this class is undefined.')
         pass
 
 
@@ -334,6 +354,7 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
 
 def cleanup():
     '''
+    Maintenance function:
     Clean up library files before closing the script; no I/O
     '''
 

@@ -20,10 +20,11 @@ temp_dir = temp_dir.replace("-", "")
 
 class SmashDistanceMetricLearning(Unsupervised_Series_Learning_Base):
     '''
-    Object for running Smashmatch to calculate the distance matrix between time series
+    Object for running Data Smashing  to calculate the distance matrix between
+    multiple timeseries; Inherits from Unsupervised_Series_Learning_Base API
 
     Inputs -
-        bin_path_(string): Path to smashmatch as a string
+        bin_path_(string): Path to Smash binary as a string
         input_class_ (Input Object): Input data
 
     Attributes:
@@ -77,7 +78,8 @@ class SmashDistanceMetricLearning(Unsupervised_Series_Learning_Base):
         '''
         Helper function:
         Returns filename from a given path/to/file
-        Taken entirely from Lauritz V. Thaulow on https://stackoverflow.com/questions/8384737
+        Taken entirely from Lauritz V. Thaulow on
+        https://stackoverflow.com/questions/8384737
 
         Input -
             path (string): path/to/the/file
@@ -92,7 +94,7 @@ class SmashDistanceMetricLearning(Unsupervised_Series_Learning_Base):
 
     def write_out_ragged(self, quantized):
         '''
-        Helper function that writes out pd.DataFrame to file in the \
+        Helper function that writes out pd.DataFrame to file in the
         temporary directory for the class
 
         Inputs -
@@ -113,25 +115,31 @@ class SmashDistanceMetricLearning(Unsupervised_Series_Learning_Base):
         for row in data:
             to_write.append( [int(x) for x in row if not np.isnan(x)] )
 
-        self.__input_dm_fh = tempfile.NamedTemporaryFile(dir=self.__file_dir, delete=False)
+        self.__input_dm_fh = tempfile.NamedTemporaryFile(dir=self.__file_dir, \
+        delete=False)
         wr = csv.writer(self.__input_dm_fh, delimiter=" ")
         wr.writerows(to_write)
         self.__input_dm_fh.close()
         self.__input_dm_fname = self.path_leaf(self.__input_dm_fh.name)
 
 
-    def run_dm(self, quantized, first_run_dm, max_len=None, num_run_dms=5, details=False):
+    def run_dm(self, quantized, first_run_dm, max_len=None, \
+    num_run_dms=5, details=False):
         '''
-        Helper function to call bin/smash to compute the distance matrix on the given input
-        timeseries and write I/O files necessary for smash
+        Helper function:
+        Calls bin/smash to compute the distance matrix on the given input
+        timeseries and write I/O files necessary for Data Smashing
 
         Inputs -
-            ml (int): max length of data to use
-            nr (int): number of runs of smashmatch used to create distance matrix
-            d (boolean): do or do not show cpu usage of smashing algorithms while they run
+            max_len (int): max length of data to use
+            num_run_dms (int): number of runs of Smash to compute distance
+                matrix (refines results)
+            details (boolean): do (True) or do not (False) show cpu usage of
+                Data Smashing algorithm
 
         Outuputs -
-            (numpy.ndarray) distance matrix of the input timeseries (shape n_samples x n_samples)
+            (numpy.ndarray) distance matrix of the input timeseries
+            (shape n_samples x n_samples)
         '''
 
         if not first_run_dm:
@@ -158,7 +166,7 @@ class SmashDistanceMetricLearning(Unsupervised_Series_Learning_Base):
 
         prev_wd = os.getcwd()
         os.chdir(self.__file_dir)
-        embedder(self.__command, shell=True, stderr=sp.STDOUT).wait()
+        sp.Popen(self.__command, shell=True, stderr=sp.STDOUT).wait()
         os.chdir(prev_wd)
 
         try:
@@ -170,20 +178,24 @@ class SmashDistanceMetricLearning(Unsupervised_Series_Learning_Base):
 
     def fit(self, ml=None, nr=None, d=False):
         '''
-        Uses Data Smashing to compute the distance matrix of the input time series
+        Uses Data Smashing to compute the distance matrix of the timeseries
 
         Inputs -
             ml (int): max length of data to use
-            nr (int): number of runs of smashmatch used to create distance matrix
-            d (boolean): do or do not show cpu usage of smashing algorithms while they run
+            nr (int): number of runs of Smash to compute distance matrix
+                (refines results)
+            d (boolean): do (True) or do not (False) show cpu usage of Data
+            Smashing algorithm
 
         Outuputs -
-            (numpy.ndarray) distance matrix of the input timeseries (shape n_samples x n_samples)
+            (numpy.ndarray) distance matrix of the input timeseries
+            (shape n_samples x n_samples)
         '''
 
         if self.__quantized_data is None: # no checks because assume data was pre-processed in Input
             if np.issubdtype(self._data .dtype, float):
-                raise ValueError("Error: input to Smashing algorithm cannot be of type float; \
+                raise ValueError(\
+                "Error: input to Smashing algorithm cannot be of type float; \
                 data not properly quantized .")
             else:
                 if self.__input_dm_fh is None:
@@ -202,27 +214,32 @@ class SmashDistanceMetricLearning(Unsupervised_Series_Learning_Base):
 
 
     def fit_transform(self,*arg,**kwds):
-        warnings.warn('Warning: fit_transform method for this class is undefined.')
+        warnings.warn(\
+        'Warning: fit_transform method for this class is undefined.')
         pass
 
 
     def fit_predict(self,*arg,**kwds):
-        warnings.warn('Warning: fit_predict method for this class is undefined.')
+        warnings.warn(\
+        'Warning: fit_predict method for this class is undefined.')
         pass
 
 
     def predict(self,*arg,**kwds):
-        warnings.warn('Warning: predict method for this class is undefined.')
+        warnings.warn(\
+        'Warning: predict method for this class is undefined.')
         pass
 
 
     def predict_proba(self,*arg,**kwds):
-        warnings.warn('Warning: predict_proba method for this class is undefined.')
+        warnings.warn(\
+        'Warning: predict_proba method for this class is undefined.')
         pass
 
 
     def log_proba(self,*arg,**kwds):
-        warnings.warn('Warning: log_proba method for this class is undefined.')
+        warnings.warn(\
+        'Warning: log_proba method for this class is undefined.')
         pass
 
 
@@ -238,6 +255,7 @@ class SmashDistanceMetricLearning(Unsupervised_Series_Learning_Base):
 
 def cleanup():
     '''
+    Maintenance function:
     Clean up library files before closing the script; no I/O
     '''
 
@@ -245,7 +263,7 @@ def cleanup():
     os.chdir(cwd)
     if os.path.exists(cwd + "/" + temp_dir):
         command = "rm -r " + cwd + "/" + temp_dir
-        embedder(command, shell=True, stderr=sp.STDOUT).wait()
+        sp.Popen(command, shell=True, stderr=sp.STDOUT).wait()
     os.chdir(prev_wd)
 
 

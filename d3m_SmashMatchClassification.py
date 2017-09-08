@@ -18,13 +18,13 @@ cwd = os.getcwd()
 
 class LibFile:
     '''
-    Helper class to store library file information to interface with file-I/O data smashing code
+    Helper class to store library file information to interface with
+    file-I/O data smashing code
 
     Attributes -
-        class (int):  label given to the class by smashmatch based on the order in
-            which it was processed
-        label (int): actual label assigned by input
-            interfacing with smashmatch
+        class (int):  label given to the class by SmashMatch
+            based on the order in which it was fed in
+        label (int): actual class label set by user
         filename (string): path to temporary library file
     '''
 
@@ -38,16 +38,23 @@ class LibFile:
 # class SmashMatchClassification(SupervisedLearningPrimitiveBase):
 class SmashMatchClassification():
     '''
-    Object for SmashMatch-based classification; modeled after sklearn.SVM.SVC classifier and using
-    SupervisedLearningPrimitiveBase API specifications
+    Class for SmashMatch-based classification; I/O modeled after
+    sklearn.SVM.SVC classifier and inherits from
+     SupervisedLearningPrimitiveBase
 
     Inputs -
         bin_path_(string): Path to smashmatch as a string
+        preproc_ ([vectorized] function): function to quantize timeseries;
+            must be vectorized (recommend np.vectorize())
+        force_vect_preproc (boolean): if quantizer function not vectorized, can
+            be vectorized before fed into class by setting
+            this parameter to be True
 
     Attributes:
         bin_path_(string): Path to smashmatch as a string
-        classes (np.1Darray): class labels fitted into the model; also column headers for
-            predict functions
+        classes (np.1Darray): class labels fitted into the model;
+            also column headers for predict functions
+            NOTE: cannot be changed once fitted - rerun fit to use new classes
         preproc (vectorized function): quantization function for timeseries data
     '''
 
@@ -88,13 +95,6 @@ class SmashMatchClassification():
         return self.__classes
 
 
-    @classes.setter
-    def classes(self, new_classes):
-        assert isinstance(new_classes, np.ndarray), \
-        "Error: classes must be of type numpy.ndarray"
-        self.__classes = new_classes
-
-
     @property
     def preproc(self):
         return self.__preproc
@@ -110,14 +110,16 @@ class SmashMatchClassification():
 
     @property
     def state(self):
-        warnings.warn('Warning: SmashMatchClassification does not have attribute state because\
+        warnings.warn('Warning: \
+        SmashMatchClassification does not have attribute state:\
         SmashMatch does not classify based on models.')
         pass
 
 
     @state.setter
     def state(self, X):
-        warnings.warn('Warning: Cannot set state for SmashMatchClassification because\
+        warnings.warn('Warning: \
+        Cannot set state for SmashMatchClassification:\
         SmashMatch does not classify based on models.')
         pass
 
@@ -126,19 +128,23 @@ class SmashMatchClassification():
     def read_vert_series(self, directory, label=None, quantize=False):
         '''
         Helper method:
-        Converts folder of libraries with vertical orientation to pd.DataFrame for
-            use with SMB and smashmatch - takes all the files within the folder to be
-            row examples of a class
+        Converts folder of timeseries with vertical orientation to
+            pd.DataFrame for use with SmashMatch - takes all the files within
+            the folder to be examples of a class and assumes each file has
+            only one timeseries -> row within DataFrame
+            NOTE: files (timeseries) can be of differing length;
+            shorter time series will be padded with NaN's
+
 
         Inputs -
-            directory (string): path to a directory or file (if file, do not use label)
-            delimiter (char): value delimiter
-            quantize (boolean): if input x timeseries have not beeen quantized,
-                apply instantiated quantizer to input timeseries examples
+            directory (string): path to a directory or file
+            label (char): class label
+            quantize (boolean): if input timeseries have not been quantized,
+                apply class quantizer if True
 
         Outputs -
-            tuple of pandas.DataFrame with missing values as NaN and label
-            (to feed into SMB.condense()) or just pd.DataFrame if no bound given
+            tuple of pandas.DataFrame with missing values as
+            NaN and label if label provided otherwise only returns pd.DataFrame
         '''
 
         if os.path.isdir(directory):
@@ -156,10 +162,12 @@ class SmashMatchClassification():
                 total.append(row)
 
             if not quantize:
-                rv = pd.DataFrame(total, columns=range(max_cols), dtype=np.int32)
+                rv = pd.DataFrame(total, columns=range(max_cols), \
+                dtype=np.int32)
                 rv.fillna(value=nan, inplace=True)
             else:
-                assert(self.__preproc is not None), "Error: no quantization function defined"
+                assert(self.__preproc is not None), \
+                "Error: no quantization function defined"
                 rv = pd.DataFrame(total, columns=range(max_cols), dtype=float)
                 rv.fillna(value=nan, inplace=True)
                 rv = rv.applymap(self.__preproc)
@@ -177,7 +185,8 @@ class SmashMatchClassification():
             if not quantize:
                 rv = pd.DataFrame(total, dtype=np.int32)
             else:
-                assert(self.__preproc is not None), "Error: no quantization function defined"
+                assert(self.__preproc is not None),\
+                "Error: no quantization function defined"
                 rv = pd.DataFrame(total, dtype=float)
                 rv = rv.applymap(self.__preproc)
 
@@ -190,17 +199,19 @@ class SmashMatchClassification():
     def read_series(self, filename, delimiter_, quantize=False):
         '''
         Helper method:
-        Reads in file with mixed column lengths (timeseries of different length)
-        (direction = horizontal)
+        Reads in file (of potentially mixed line lengths)
+            (timeseries of different length)(direction = horizontal)
+            as a pandas.DataFrame where each row is a timeseries (from
+            corresponding line); shorter timeseries padded with NaN's
 
         Inputs -
             filename (string): path to file
             delimiter (char): value delimiter
-            quantize (boolean): if input x timeseries have not beeen quantized,
-                apply instantiated quantizer to input timeseries examples
+            quantize (boolean): if input timeseries have not been quantized,
+                apply class quantizer if True
 
         Outputs -
-            tuple of pandas.DataFrame with missing values as NaN (to feed into SMB.condense())
+            pandas.DataFrame with missing values as NaN
         '''
 
         data = []
@@ -229,7 +240,8 @@ class SmashMatchClassification():
     def get_unique_name(self, lib):
         '''
         Helper method:
-        Generates unique filename with the given prefix
+        Generates unique filename with the prefix "lib_" if the input
+            file is a library files or no prefix if it is not a library file
 
         Inputs -
             lib (boolean) whether the generated name is for a library file (True)
@@ -249,14 +261,14 @@ class SmashMatchClassification():
     def condense(self, mappings):
         '''
         Helper method:
-        Creates X, y necessary for smashmatch following sklearn.SVM conventions for the fit method
+        Creates X (timeseries), y (labels) necessary for SmashMatch following sklearn.SVM.SVC.fit method conventions
 
         Input -
             mappings(list of tuples of (df, label))
 
         Output -
-            X (examples of each class, each example is a row)
-            y (df with corresponding of n x 1 with n being the number of timeseries in X)
+            X (timeseries examples of each class, each row = unique timeseries)
+            y (df with corresponding labels of n x 1, n=number of timeseries in X)
         '''
 
         labelled = []
@@ -275,12 +287,13 @@ class SmashMatchClassification():
     def make_libs_df(self, X, y):
         '''
         Helper method:
-        Writes class labels & examples to files usable by SmashMatch,
-        but also compatible with pandas DataFrames
+        Writes out class labels & examples to files usable by SmashMatch
+            (delimited by spaces, each row is a timeseries, create a different file for each series)
 
         Inputs -
-            X (pd.DataFrame): timeseries examples of each class
-            y (pd.Dataframe): labels for each type of timeseries
+            X (pd.DataFrame): timeseries examples of each class, each row is a
+                timeseries
+            y (pd.Dataframe): labels for each timeseries
 
         Returns -
             lib_files (list of LibFile objects)
@@ -299,7 +312,7 @@ class SmashMatchClassification():
             df = X.loc[X.level == label_]
             df = df.drop("level", 1)
             fname = self.get_unique_name(True)
-            self.write_out_ragged(fname, X)
+            self.write_out_series(fname, df)
             lib_files.append(LibFile(class_num, label_, fname))
             class_num += 1
         return lib_files
@@ -308,11 +321,13 @@ class SmashMatchClassification():
     def make_libs(self, X, y):
         '''
         Helper method:
-        Writes class labels & examples to files usable by smashmatch
+        Writes out class labels & examples to files usable by SmashMatch
+            (delimited by spaces, each row is a timeseries, create a different file for each series)
 
         Inputs -
-            X (np.nda): class examples
-            y (np.1da): class labels
+            X (np.nda): timeseries examples of each class, each row is a
+                timeseries
+            y (np.1da): labels for each timeseries
 
         Returns -
             rv (list of LibFile objects)
@@ -341,12 +356,13 @@ class SmashMatchClassification():
     def fit(self, X, y, quantize=False): # not sure what to do with kwargs or the classes/sample_weight params
         '''
         Reads in appropriate data/labels -> library class files
-        to be used by SmashMatch
+            to be used by SmashMatch
+            (writes out library files in format usable by SmashMatch)
 
         Inputs -
             X (np.nda or pandas.DataFrame): class examples
             y (np.1da or pandas.Series): class labels
-            quantize (boolean): if input X timeseries have not beeen quantized,
+            quantize (boolean): if timeseries have not beeen quantized,
                 apply instantiated quantizer to input timeseries examples
 
         Returns -
@@ -369,8 +385,7 @@ class SmashMatchClassification():
                 X = X.applymap(self.__preproc)
             self.__lib_files = self.make_libs_df(X, y)
         else:
-            raise ValueError("Error: unsupported types for X. X can only be of type \
-            numpy.ndarray or pandas.DataFrame.")
+            raise ValueError("Error: unsupported types for X. X can only be of type numpy.ndarray or pandas.DataFrame.")
 
         mappings = []
         # need to make sure we feed the class_names in according to their actual order
@@ -388,11 +403,12 @@ class SmashMatchClassification():
     def write_out_nda(self, array):
         '''
         Helper method:
-        Reads in input data to file usable by SmashMatch
+        Writes out input data to file usable by SmashMatch (delimited by space)
+            each row is a timeseries
 
         Inputs -
-            array (np.nda): data to be classified; each row represents a different timeseries
-                to be classified
+            array (np.nda): data to be classified; each row = unique timeseries
+
         Outputs -
             (string) filename of the input_file
         '''
@@ -406,17 +422,18 @@ class SmashMatchClassification():
         return fname
 
 
-    def write_out_ragged(self, filename, df_):
+    def write_out_series(self, filename, df_):
         '''
         Helper method:
-        Writes out pd.DataFrame to tempfile to interface with SmashMAtch
+        Writes out pd.DataFrame to file to usable by SmashMatch (delimited by
+            space, each line=unique timeseries)
 
         Inputs -
-            filename (string)
-            df (pd.DataFrame)
+            filename (string): name of output file
+            df (pd.DataFrame): timeseries to be written out
 
         Outputs -
-            out (tempfile)
+            (None)
         '''
         assert(isinstance(df_, pd.DataFrame)), "Error: argument df is not type pandas.DataFrame"
 
@@ -432,17 +449,22 @@ class SmashMatchClassification():
     def compute(self, X, input_length, num_repeats, no_details, force):
         '''
         Helper method:
-        Calls SmashMatch on the specified input file with the parameters specified
+        Calls SmashMatch on the specified data with the parameters specified;
+            creates command string for SmashMatch binary and calls using
+            SmashMatch; udpates internal variables
 
         Inputs -
-            X (nda): input data (each row is a different timeseries)
+            X (numpy.ndarray or pandas DataFrame): input data (each row is a
+                different timeseries)
             input_length (int): length of the input timeseries to use
-            num_repeats (int): number of times to run smashmatch (for refining results)
-            no_details (boolean): do not print Smashmatch statisitics while running clasification
+            num_repeats (int): number of times to run SmashMatch (for refining
+                results)
+            no_details (boolean): do not print SmashMatch processer usage and
+                speed while running classification
             force (boolean): force re-classification on current dataset
 
         Outputs -
-            (boolean) whether smashmatch results corresponding to X were created/exist
+            (boolean) whether SmashMatch results corresponding to X were created/exist
         '''
 
         if force or self.should_calculate(X): # dataset was not the same as before or first run
@@ -455,7 +477,7 @@ class SmashMatchClassification():
             elif isinstance(X, pd.DataFrame): # being explicit
                 self.__input = X
                 fname = self.get_unique_name(False)
-                self.write_out_ragged(fname, X)
+                self.write_out_series(fname, X)
                 input_name_command = " -f " + fname
             else: # theoretically should be impossible, but to be explicit
                 raise ValueError("Error: unsupported types for X. X can only be of type \
@@ -489,7 +511,8 @@ class SmashMatchClassification():
     def reset_input(self):
         '''
         Helper Method:
-        Clears the working data directory of previous run of SmashMatch; no I/O
+        Clears the working data directory of previous run of SmashMatch and
+            resets command to be fed into SmashMatch; no I/O
         '''
 
         os.chdir(self.__file_dir)
@@ -502,12 +525,13 @@ class SmashMatchClassification():
     def has_smashmatch(self):
         '''
         Helper method:
-        Checks data directory for SmashMatch result files
+        Checks internal data directory for SmashMatch result files
 
         Input -
             (None)
         Output -
-            (boolean) True if smashmatch files present, False if smashmatch files aren't present
+            (boolean) True if SmashMatch files present, False if SmashMatch
+                files aren't present
         '''
 
         if prefix + "_prob" in os.listdir(self.__file_dir) and \
@@ -520,16 +544,16 @@ class SmashMatchClassification():
     def should_calculate(self, X_):
         '''
         Helper method:
-        Clears result files of smashmatch if the previous dataset is different than the current
-        or if this is the first run of smashmatch (in which case self.__input would be None)
+        Determines case of current use then decides whether or not to clear
+            data directory of files to prevent hogging space
 
         Inputs -
-            X_ (nda): input time series
+            X_ (numpy.ndarray or pandas.DataFrame): timeseries data
 
         Returns -
-            True if results were cleared and smashmatch needs to be run again, False if
-                first run or if dataset is the same
-            Or will exit abruptly if unexpected 4 case arises
+            True if results were cleared or interrupted and SmashMatch needs to
+                be run again, False if first run or if dataset is the same
+                since SmashMatch produces both the outputs of predict and predict_log_proba per every call
         '''
 
         # pdb.set_trace()
@@ -583,19 +607,21 @@ class SmashMatchClassification():
     # actual methods of smashmatch
     def predict(self, x, il=None, nr=5, no_details=True, force=False, quantize=False):
         '''
-        Classifies each of the input time series (X) using smashmatch and the given parameters
+        Classifies each input timeseries (X) using SmashMatch and the given parameters
 
         Inputs -
-            x (nda): input data (each row is a different timeseries)
-            il (int): length of the input timeseries to use (smashmatch param)
-            nr (int): number of times to run smashmatch (for refining results) (smashmatch param)
-            no_details (boolean): do not print Smashmatch statisitics while running clasification
+            x (numpy.nda or pandas.DataFrame): input data (each row is a
+                different timeseries)
+            il (int): length of the input timeseries to use
+            nr (int): number of times to run SmashMatch (for refining results)
+            no_details (boolean): do not print SmashMatch cpu usage/speed of
+                algorithm while running clasification
             force (boolean): force re-classification on current dataset
-            quantize (boolean): if input x timeseries have not beeen quantized,
-                apply instantiated quantizer to input timeseries examples
+            quantize (boolean): if input timeseries have not beeen quantized,
+                apply class quantizer to input timeseries
 
         Outputs -
-            np.nda of shape (num_timeseries), 1 if successful or None if not successful
+            numpy.nda of shape (num_timeseries), 1 if successful or None if not successful
         '''
 
         if quantize:
@@ -621,27 +647,28 @@ class SmashMatchClassification():
             # return np.reshape(res, (-1, 1))
             return res
         else:
-            print("Error processing command: smashmatch FNF. Please try again.")
+            print("Error processing command: SmashMatch FNF. Please try again.")
             return None
 
 
     def predict_proba(self, x, il=None, nr=5, no_details=True, force=False, quantize=False):
         '''
-        Predicts percentage probability for the input time series to classify as any
-        of the possible classes fitted
+        Predicts percentage probability for the input time series to classify as any of the possible classes fitted
 
         Inputs -
-            x (numpy.nda or pandas.DataFrame): input data (each row is a different timeseries)
-            il (int): length of the input timeseries to use (smashmatch param)
-            nr (int): number of times to run smashmatch (for refining results) (smashmatch param)
-            no_details (boolean): do not print Smashmatch statisitics while running clasification
+            x (numpy.nda or pandas.DataFrame): input data (each row is a
+                different timeseries)
+            il (int): length of the input timeseries to use
+            nr (int): number of times to run SmashMatch (for refining results)
+            no_details (boolean): do not print SmashMatch cpu usage/speed of
+                algorithm while running clasification
             force (boolean): force re-classification on current dataset
-            quantize (boolean): if input x timeseries have not beeen quantized,
-                apply instantiated quantizer to input timeseries examples
+            quantize (boolean): if input timeseries have not beeen quantized,
+                apply class quantizer to input timeseries
 
         Outputs -
             np.nda of shape n x m if successful or None if not successful
-                where n = num_timeseries and m = num_classes
+                where n = number of timeseries and m = number of classes
                 probabilities are listed in an order corresponding to the classes attribute
         '''
 
@@ -667,21 +694,22 @@ class SmashMatchClassification():
 
     def predict_log_proba(self, x, il=None, nr=5, no_details=True, force=False, quantize=False):
         '''
-        Predicts logarithmic probability for the input time series to classify as any
-        of the possible classes fitted
+        Predicts logarithmic probability for the input time series to classify as any of the possible classes fitted
 
         Inputs -
-            x (numpy.nda or pandas.DataFrame): input data (each row is a different timeseries)
+            x (numpy.nda or pandas.DataFrame): input data (each row is a
+                different timeseries)
             il (int): length of the input timeseries to use
-            nr (int): number of times to run smashmatch (for refining results)
-            no_details (boolean): do not print Smashmatch statisitics while running clasification
+            nr (int): number of times to run SmashMatch (for refining results)
+            no_details (boolean): do not print SmashMatch cpu usage/speed of
+                algorithm while running clasification
             force (boolean): force re-classification on current dataset
-            quantize (boolean): if input x timeseries have not beeen quantized,
-                apply instantiated quantizer to input timeseries examples
+            quantize (boolean): if input timeseries have not beeen quantized,
+                apply class quantizer to input timeseries
 
         Outputs -
             np.nda of shape n x m if successful or None if not successful
-                where n = num_timeseries and m = num_classes
+                where n = number of timeseries and m = number of classes
                 probabilities are listed in an order corresponding to the classes attribute
         '''
 
@@ -693,20 +721,17 @@ class SmashMatchClassification():
 
 
     def staged_fit(self, X, y, sample_weight=None, classes=None, **kwargs):
-        warnings.warn('Warning: staged_fit method for this class is undefined because\
-        SmashMatch does not classify based on models.')
+        warnings.warn('Warning: staged_fit method for this class is undefined because SmashMatch does not classify based on models.')
         pass
 
 
     def staged_predict(self, X):
-        warnings.warn('Warning: staged_predict method for this class is undefined because\
-        SmashMatch does not classify based on models.')
+        warnings.warn('Warning: staged_predict method for this class is undefined because SmashMatch does not classify based on models.')
         pass
 
 
     def staged_predict_log_proba(self, X):
-        warnings.warn('Warning: staged_predict_log_proba method for this class is undefined\
-        because SmashMatch does not classify based on models.')
+        warnings.warn('Warning: staged_predict_log_proba method for this class is undefined because SmashMatch does not classify based on models.')
         pass
 
 
@@ -729,7 +754,7 @@ class SmashMatchClassification():
 def cleanup():
     '''
     Maintenance function:
-    Clean up library files before closing the script; no I/O
+    Delete library/result files before closing the script; no I/O
     '''
 
     prev_wd = os.getcwd()

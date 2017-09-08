@@ -86,7 +86,7 @@ class Input(object):
         return self._preproc
 
     @preproc.setter
-    def preproc(self,func,force_vect_preproc=False):
+    def preproc(self,func,force_vect_preproc=True):
         if force_vect_preproc:
             self._preproc = np.vectorize(func)
         else:
@@ -169,7 +169,7 @@ class Unsupervised_Series_Learning_Base(object):
     + fit_transform :  standard interpretation as in sklearn
     + predict :  standard interpretation as in sklearn
     + transform :  standard interpretation as in sklearn
-    + fit_preditc :  standard interpretation as in sklearn
+    + fit_predict :  standard interpretation as in sklearn
     + predict_proba :  standard interpretation as in sklearn
     + predict_log_proba :  standard interpretation as in sklearn
 
