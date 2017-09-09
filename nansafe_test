@@ -1,0 +1,6 @@
+import numpy as np
+import pandas pd
+from numpy import nan
+
+def nan_safe(f, array):
+    return np.fromiter((f(val) for val in array if not pd.isnull(val) else nan), array.dtype)

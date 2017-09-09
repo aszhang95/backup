@@ -19,8 +19,7 @@ def q(x):
 
 # create Input class instance and vectorize quantizer (note: vectorizing
 # quantizer is default behavior but can be set to False if quantizer already vectorized)
-data_class = Input(data=X, is_categorical=True, is_synchronized=True,\
-preproc=q, force_vect_preproc=True)
+data_class = Input(data=X, is_categorical=True, is_synchronized=True, preproc=q)
 
 # decide on number of features to use (default is 2)
 num_f = 2

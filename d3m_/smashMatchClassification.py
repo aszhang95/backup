@@ -12,6 +12,7 @@ import numpy as np
 from numpy import nan
 import pandas as pd
 import supervisedLearningPrimitiveBase
+from seriesUtil import apply
 
 
 
@@ -51,22 +52,18 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
 
     Inputs -
         bin_path(string): Path to smashmatch as a string
-        preproc ([vectorized] function): function to quantize timeseries;
-            must be vectorized (recommend np.vectorize())
-        force_vect_preproc (boolean): if quantizer function not vectorized, can
-            be vectorized before fed into class by setting
-            this parameter to be True
+        preproc (function): function to quantize timeseries;
 
     Attributes:
         bin_path(string): Path to smashmatch as a string
         classes (np.1Darray): class labels fitted into the model;
             also column headers for predict functions
             NOTE: cannot be changed once fitted - rerun fit to use new classes
-        preproc (vectorized function): quantization function for timeseries data
+        preproc (function): quantization function for timeseries data
     '''
 
     # lib_files = list of library file names or LibFile Objects
-    def __init__(self, bin_path, preproc=None, force_vect_preproc=True):
+    def __init__(self, bin_path, preproc=None):
         assert os.path.isfile(bin_path), "Error: invalid bin path."
         self.__bin_path = os.path.abspath(bin_path)
         prev_wd = os.getcwd()
@@ -80,9 +77,7 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
         self.__command = self.__bin_path
         self.__input = None
         self.__mapper = {}
-        if force_vect_preproc and preproc is not None:
-            self.__preproc = np.vectorize(preproc)
-        else:
+        if preproc is not None:
             self.__preproc = preproc
 
 
@@ -108,11 +103,8 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
 
 
     @preproc.setter
-    def preproc(self, new_preproc, force_vect_preproc):
-        if force_vect_preproc:
-            self.__preproc = np.vectorize(new_preproc)
-        else:
-            self.__preproc = new_preproc
+    def preproc(self, new_preproc):
+        self.__preproc = new_preproc
 
 
     @property
@@ -177,7 +169,7 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
                 "Error: no quantization function defined"
                 rv = pd.DataFrame(total, columns=range(max_cols), dtype=float)
                 rv.fillna(value=nan, inplace=True)
-                rv = rv.applymap(self.__preproc)
+                rv = apply(self.__preproc, rv)
 
             if label is not None:
                 return (rv, label)
@@ -195,7 +187,7 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
                 assert(self.__preproc is not None),\
                 "Error: no quantization function defined"
                 rv = pd.DataFrame(total, dtype=float)
-                rv = rv.applymap(self.__preproc)
+                rv = apply(self.__preproc, rv)
 
             if label is not None:
                 return (rv, label)
@@ -240,7 +232,7 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
                 assert(self.__preproc is not None), "Error: no quantization function defined"
                 rv = pd.DataFrame(data, columns=range(max_col_len), dtype=float)
                 rv.fillna(value=nan, inplace=True)
-                rv = rv.applymap(self.__preproc)
+                rv = apply(self.__preproc, rv)
         return rv
 
 
@@ -378,18 +370,15 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
 
         if quantize:
             assert(self.__preproc is not None), "Error: no quantization function defined"
+            X = apply(self.__preproc, X)
         # delete old library files before running (would only be true after first run)
         len_libs = len(self.__lib_files)
         if len_libs != 0:
             self.clean_libs()
 
         if isinstance(X, np.ndarray):
-            if quantize:
-                X = self.__preproc(X)
             self.__lib_files = self.make_libs(X, y)
         elif isinstance(X, pd.DataFrame):
-            if quantize:
-                X = X.applymap(self.__preproc)
             self.__lib_files = self.make_libs_df(X, y)
         else:
             raise ValueError("Error: unsupported types for X. X can only be of type numpy.ndarray or pandas.DataFrame.")
@@ -633,13 +622,7 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
 
         if quantize:
             assert(self.__preproc is not None), "Error: no quantization function defined"
-
-        if isinstance(x, np.ndarray):
-            if quantize:
-                x = self.__preproc(x)
-        elif isinstance(x, pd.DataFrame):
-            if quantize:
-                x = x.applymap(self.__preproc)
+            x = apply(self.__preproc, x)
 
         compute_res = self.compute(x, il, nr, no_details, force)
         if compute_res:
@@ -670,7 +653,7 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
             no_details (boolean): do not print SmashMatch cpu usage/speed of
                 algorithm while running clasification
             force (boolean): force re-classification on current dataset
-            quantize (boolean): if input timeseries have not beeen quantized,
+            quantize (boolean): if input timeseries have not been quantized,
                 apply class quantizer to input timeseries
 
         Outputs -
@@ -681,13 +664,7 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
 
         if quantize:
             assert(self.__preproc is not None), "Error: no quantization function defined"
-
-        if isinstance(x, np.ndarray):
-            if quantize:
-                x = self.__preproc(x)
-        elif isinstance(x, pd.DataFrame):
-            if quantize:
-                x = x.applymap(self.__preproc)
+            x = apply(self.__preproc, x)
 
         compute_res = self.compute(x, il, nr, no_details, force)
         if compute_res:
@@ -711,7 +688,7 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
             no_details (boolean): do not print SmashMatch cpu usage/speed of
                 algorithm while running clasification
             force (boolean): force re-classification on current dataset
-            quantize (boolean): if input timeseries have not beeen quantized,
+            quantize (boolean): if input timeseries have not been quantized,
                 apply class quantizer to input timeseries
 
         Outputs -

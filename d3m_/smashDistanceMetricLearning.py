@@ -119,7 +119,7 @@ class SmashDistanceMetricLearning(UnsupervisedSeriesLearningBase):
 
         to_write = []
         for row in data:
-            to_write.append( [int(x) for x in row if not np.isnan(x)] )
+            to_write.append( [int(x) for x in row if not pd.isnull(x)] )
 
         self.__input_dm_fh = tempfile.NamedTemporaryFile(dir=self.__file_dir, \
         delete=False)

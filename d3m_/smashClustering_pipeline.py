@@ -16,11 +16,8 @@ def q(x):
     else:
         return 1
 
-# create Input class instance and vectorize quantizer (note: vectorizing
-# quantizer is default behavior but can be set to False if quantizer already vectorized)
-data_class = Input(data=X, is_categorical=True, is_synchronized=True,\
-preproc=q, force_vect_preproc=True)
-
+# create Input class instance
+data_class = Input(data=X, is_categorical=True, is_synchronized=True, preproc=q)
 
 # instantiate clustering class to be used to cluster distance matrix data
 # if not specified, default is cluster.KMeans
@@ -37,8 +34,25 @@ print(scc.fit(nr=3))
 print(scc.predict(nr=3))
 
 # can switch clustering class; first need to initialize then set
-KMeans_cc= cluster.KMeans(n_clusters=4)
+KMeans_cc = cluster.KMeans(n_clusters=4)
 scc.cluster_class = KMeans_cc
 
 # can also call fit_predict for convenience (note: distance matrix will be recalculated)
+print(scc.fit_predict(nr=3))
+
+# second test on known dataset of 3 classes
+X2 = read_series("../data_small/COMBINED_TEST", delimiter=" ").values
+data_class2 = Input(data=X2, is_categorical=True, is_synchronized=True,\
+preproc=q)
+scc.data = data_class2
+
+# create the clustering classes to use (meanshift does not take param n_clusters, so reuse)
+KMeans_cc2 = KMeans_cc = cluster.KMeans(n_clusters=3)
+
+# compare
+scc.cluster_class = KMeans_cc2
+print(scc.fit(nr=3))
+print(scc.fit_predict(nr=3))
+scc.cluster_class = meanshift_cc
+print(scc.fit(nr=3))
 print(scc.fit_predict(nr=3))

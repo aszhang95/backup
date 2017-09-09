@@ -130,7 +130,7 @@ class SmashFeaturization(UnsupervisedSeriesLearningBase):
         return tail or ntpath.basename(head)
 
 
-    def write_out_ragged(self, quantized):
+    def write_series(self, quantized):
         '''
         Helper function:
         Writes out input numpy.ndarray to file to interface with Data Smashing
@@ -153,7 +153,7 @@ class SmashFeaturization(UnsupervisedSeriesLearningBase):
 
         to_write = []
         for row in data:
-            to_write.append( [int(x) for x in row if not np.isnan(x)] )
+            to_write.append( [int(x) for x in row if not pd.isnull(x)] )
 
         self.__input_dm_fh = tempfile.NamedTemporaryFile(\
         dir=self.__file_dir, delete=False)
@@ -187,9 +187,9 @@ class SmashFeaturization(UnsupervisedSeriesLearningBase):
             self.__command = (self.__bin_path + "/smash")
 
         if not quantized:
-            self.write_out_ragged(False)
+            self.write_series(False)
         else:
-            self.write_out_ragged(True)
+            self.write_series(True)
 
         self.__command += " -f " + self.__input_dm_fname + " -D row -T symbolic"
 
@@ -236,7 +236,7 @@ class SmashFeaturization(UnsupervisedSeriesLearningBase):
         except ValueError:
             self._output = self._output + self._output.T
             try:
-                self.__featurization_class.fit_transform(self._ouput, y,\
+                self.__featurization_class.fit_transform(self._output, y,\
                 init)
             except:
                 warnings.warn(\

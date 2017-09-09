@@ -14,7 +14,7 @@ def q(x):
 # create instance of the SmashMatchClassification with the given quantization and force vectorization
 # note: force_vect_preproc == True by default, unless input quantizer is vectorized,
 # then need to set as False
-clf = SmashMatchClassification(bin_path=bin_path, preproc=q, force_vect_preproc=True)
+clf = SmashMatchClassification(bin_path=bin_path, preproc=q)
 
 # quantize and read in library files as pd.DataFrame
 lib0 = clf.read_series("../data_small/LIB0", delimiter=" ", quantize=True)

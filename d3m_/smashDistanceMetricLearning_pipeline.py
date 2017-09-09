@@ -16,10 +16,8 @@ def q(x):
     else:
         return 1
 
-# create Input class instance and vectorize quantizer (note: vectorizing
-# quantizer is default behavior but can be set to False if quantizer already vectorized)
-data_class = Input(data=X, is_categorical=True, is_synchronized=True,\
-preproc=q, force_vect_preproc=True)
+# create Input class instance 
+data_class = Input(data=X, is_categorical=True, is_synchronized=True,preproc=q)
 
 
 # create SmashDistanceMatrixLearning class to run methods

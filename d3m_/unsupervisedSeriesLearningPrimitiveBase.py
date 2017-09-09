@@ -15,6 +15,9 @@ __version__ = "v0.31415"
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import warnings
+from seriesUtil import apply
+
+
 
 class Input(object):
     """
@@ -46,9 +49,6 @@ class Input(object):
     in which case np.Nan may occur not just as right padding in order
     to signal missing data in such synchronized streams.
 
-    Property force_vect_preproc can be set to true if input preproc function
-    is not already vectorized (necessary for mapping over unquantized data)
-
     Function preproc is used for modifying the input data
     (returned from get()). The expected use case is quantization,
     but can be used for general pre-processing.
@@ -59,16 +59,13 @@ class Input(object):
     def __init__(self,data=np.empty([1,1]),
                  is_categorical=False,
                  is_synchronized=False,
-                 preproc=None, force_vect_preproc=True):
+                 preproc=None):
         self._data=data
         self.is_categorical=is_categorical
         self.check_data()
         self.is_synchronized=is_synchronized
         if preproc is not None:
-            if force_vect_preproc:
-                self._preproc=np.vectorize(preproc)
-            else:
-                self._preproc=preproc
+            self._preproc=preproc
             self.check_preproc(self._preproc)
 
 
@@ -86,17 +83,14 @@ class Input(object):
         return self._preproc
 
     @preproc.setter
-    def preproc(self,func,force_vect_preproc=True):
-        if force_vect_preproc:
-            self._preproc = np.vectorize(func)
-        else:
-            self._preproc=func
+    def preproc(self,func):
+        self._preproc=func
         self.check_preproc(self._preproc)
 
 
     def get(self):
         if self._preproc is not None:
-            return self._preproc(self._data)
+            return apply(self._preproc, self._data)
         else:
             print("Error: no preproc function defined")
             return None
@@ -107,7 +101,7 @@ class Input(object):
     def check_preproc(self,func):
         if not callable(func):
             raise Exception('preproc must be ndarray -> ndarray')
-        if (type(func(np.ones([1,3]))) is not np.ndarray):
+        if not isinstance(apply(func, (np.ones([1,3]))), np.ndarray):
             raise Exception('dtype for preproc must be ndarray -> ndarray')
         return True
 
