@@ -1,9 +1,15 @@
-import os, csv, pdb, tempfile, ntpath, uuid, atexit, sys
+import os
+import csv
+import tempfile
+import ntpath
+import uuid
+import atexit
+import sys
 import subprocess as sp
 import numpy as np
 from numpy import nan
 import pandas as pd
-from d3m_unsup_wo_output_class import *
+from unsupervisedSeriesLearningPrimitiveBase import *
 
 
 
@@ -11,38 +17,41 @@ from d3m_unsup_wo_output_class import *
 
 
 # global variables
-cwd = os.getcwd()
-temp_dir = str(uuid.uuid4())
-temp_dir = temp_dir.replace("-", "")
+CWD = os.getcwd()
+TEMP_DIR = str(uuid.uuid4())
+TEMP_DIR = TEMP_DIR.replace("-", "")
 
 
 
 
-class SmashEmbedding(Unsupervised_Series_Learning_Base):
+class SmashEmbedding(UnsupervisedSeriesLearningBase):
     '''
     Object for running Data Smashing to calculate the distance matrix between
         timeseries and using Sippl and/or sklearn.manifold.MDS to embed;
-        inherits from the Unsupervised_Series_Learning_Base API
+        inherits from the UnsupervisedSeriesLearningBase API
 
     Inputs -
-        bin_path_(string): Path to Data Smashing binary as a string
-        input_class_ (Input Object): Input data
+        bin_path(string): Path to Data Smashing binary as a string
+        input_class (Input Object): Input data
         n_dim (int): number of dimensions for embedding algorithm
+        embed_class (class): custom class to embed input timeseries
 
     Attributes:
         bin_path (string): path to bin/smash
         num_dimensions (int): number of dimensions to use for embedding
+        embedding_class (class): custom class to embed input timeseries
     '''
 
-    def __init__(self, bin_path_, input_class_, n_dim):
-        self.__bin_path = os.path.abspath(bin_path_)
-        self.__input_class = input_class_
+    def __init__(self, bin_path, input_class, n_dim=2, embed_class=None):
+        self.__bin_path = os.path.abspath(bin_path)
+        self.__input_class = input_class
         self._data = self.__input_class.data
         self.__num_dimensions = n_dim
+        self.__embedding_class = embed_class
         prev_wd = os.getcwd()
-        os.chdir(cwd)
-        sp.Popen("mkdir "+ temp_dir, shell=True, stderr=sp.STDOUT).wait()
-        self.__file_dir = cwd + "/" + temp_dir
+        os.chdir(CWD)
+        sp.Popen("mkdir "+ TEMP_DIR, shell=True, stderr=sp.STDOUT).wait()
+        self.__file_dir = CWD + "/" + TEMP_DIR
         os.chdir(prev_wd)
         self.__quantized_data  = self.__input_class.get()
         self._problem_type = "embedding"
@@ -64,6 +73,16 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         return self.__num_dimensions
 
 
+    @property
+    def embedding_class(self):
+        return self.__embedding_class
+
+
+    @property
+    def data(self):
+        return self._data
+
+
     @bin_path.setter
     def bin_path(self, new_bin_path):
         self.__bin_path = os.path.abspath(new_bin_path)
@@ -73,13 +92,13 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
     @num_dimensions.setter
     def num_dimensions(self, new_ndim):
         assert isinstance(new_ndim, int), \
-        "Error: num_dimensions must be an int."
+        "Error: number of dimensions must be an int."
         self.__num_dimensions = new_ndim
 
 
-    @property
-    def data(self):
-        return self._data
+    @embedding_class.setter
+    def embedding_class(self, new_embed_class):
+        self.__embedding_class = new_embed_class
 
 
     @data.setter
@@ -134,7 +153,8 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         for row in data:
             to_write.append( [int(x) for x in row if not np.isnan(x)] )
 
-        self.__input_dm_fh = tempfile.NamedTemporaryFile(dir=self.__file_dir, delete=False)
+        self.__input_dm_fh = tempfile.NamedTemporaryFile(\
+        dir=self.__file_dir, delete=False)
         wr = csv.writer(self.__input_dm_fh, delimiter=" ")
         wr.writerows(to_write)
         self.__input_dm_fh.close()
@@ -188,15 +208,45 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         os.chdir(prev_wd)
 
         try:
-            results = np.loadtxt(fname=(self.__file_dir +"/"+self.__output_dm_fname), dtype=float)
+            results = np.loadtxt(fname=\
+            (self.__file_dir +"/"+self.__output_dm_fname), dtype=float)
             return results
         except IOError:
             print "Error: Smash calculation unsuccessful. Please try again."
 
 
-    def fit(self, ml=None, nr=None, d=False):
+    def fit_asymmetric(self, y=None, init=None):
         '''
-        Uses Data Smashing to compute the distance matrix of the timeseries
+        Helper method:
+        Transforms distance matrix data to be symmetric and compatible with
+        sklearn embedding
+
+        Inputs -
+            y and init (numpy.ndarray): parameters of sklearn fit methods
+
+        Returns -
+            (None): modifies instance in place
+        '''
+
+        self._output = self._output.astype(np.float64)
+        try:
+            self.__embedding_class.fit(self._output, y, init)
+        except ValueError:
+            self._output = self._output + self._output.T
+            try:
+                self.__embedding_class.fit(self._output, y, init)
+            except:
+                warnings.warn(\
+                "Embedding error: Unable to fit. \
+                Please ensure input embedding class takes\
+                distance matrices as input.")
+
+
+    def fit(self, ml=None, nr=None, d=False, y=None, init=None):
+        '''
+        Uses Data Smashing to compute the distance matrix of the timeseries;
+            if an embedding glass has been defined, then fit on that
+            embedding class will be run on the distance matrix
 
         Inputs -
             ml (int): max length of data to use
@@ -218,21 +268,29 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
             else:
                 if self.__input_dm_fh is None:
                     self._output = self.run_dm(False, True, ml, nr, d)
+                    if self.__embedding_class is not None:
+                        self.fit_asymmetric(y, init)
                     return self._output
                 else:
                     self._output = self.run_dm(False, False, ml, nr, d)
+                    if self.__embedding_class is not None:
+                        self.fit_asymmetric(y, init)
                     return self._output
         else:
             if self.__input_dm_fh is None:
                 self._output = self.run_dm(True, True, ml, nr, d)
+                if self.__embedding_class is not None:
+                    self.fit_asymmetric(y, init)
                 return self._output
             else:
                 self._output = self.run_dm(True, False, ml, nr, d)
+                if self.__embedding_class is not None:
+                    self.fit_asymmetric(y, init)
                 return self._output
 
 
     def fit_transform(self, ml=None, nr=None, d=False, \
-    embedder=None, init=None):
+    embedder='default', y=None, init=None):
         '''
         Computes Data Smashing distance matrix and returns
         the resulting embedded coordinates
@@ -243,8 +301,8 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
                 (refines results)
             d (boolean): do (True) or do not (False) show cpu usage of Smash
                 algorithm
-            embedder (instance of embedding class that embeds distance matrices
-                with fit_transform function) e.g. sklearn.manifold.MDS
+            embedder (string) either 'default' to use Sippl Embedding or
+                'custom' to use user-defined emebedding class
             y and init (numpy.ndarray): parameters for the fit_transform method
                 of sklearn.embedding classes
 
@@ -257,7 +315,7 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         # since you run fit, the assumption can read in from the file you wrote out to in fit
         # i.e. self.__output_dm_fname is the name for the input
 
-        if embedder is None:
+        if embedder == 'default':
             prev_wd = os.getcwd()
             os.chdir(self.__file_dir)
             command = (self.__bin_path + "/embed -f ")
@@ -289,25 +347,14 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         else:
             self.__input_e = self.__input_e.astype(np.float64)
             try:
-
-                try:
-                    y_ = self._data_additional.data
-                except AttributeError:
-                    y_ = None
-
-                self._output = embedder.fit_transform(self.__input_e, y_, init)
+                self._output = self.__embedding_class.fit_transform(\
+                self.__input_e, y, init)
                 return self._output
 
             except ValueError:
                 self.__input_e = self.__input_e + self.__input_e.T
-
                 try:
-                    y_ = self._data_additional.data
-                except AttributeError:
-                    y_ = None
-
-                try:
-                    self._output = embedder.fit_transform(self.__input_e, y_,\
+                    self._output = self.__embedding_class.fit_transform(self.__input_e, y,\
                     init)
                     return self._output
                 except:
@@ -346,9 +393,88 @@ class SmashEmbedding(Unsupervised_Series_Learning_Base):
         pass
 
 
-    def transform(self,*arg,**kwds):
-        warnings.warn('Warning: transform method for this class is undefined.')
-        pass
+    def transform(self, ml=None, nr=None, d=False, \
+    embedder='default', init=None):
+        '''
+        Returns the resulting embedded coordinates from the fitted embedding class
+
+        Inputs -
+            ml (int): max length of data to use
+            nr (int): number of runs of Smash to compute distance matrix
+                (refines results)
+            d (boolean): do (True) or do not (False) show cpu usage of Smash
+                algorithm
+            embedder (string) either 'default' to use Sippl Embedding or
+                'custom' to use user-defined emebedding class
+            y and init (numpy.ndarray): parameters for the fit_transform method
+                of sklearn.embedding classes
+
+        Outuputs -
+            (numpy.ndarray) the embedded coordinates of the input data
+            (shape num_timeseries x num_dimensions)
+        '''
+
+        assert self._output is not None, \
+        "Error: no embedding class has been fit"
+        if embedder == 'default':
+            prev_wd = os.getcwd()
+            os.chdir(self.__file_dir)
+            command = (self.__bin_path + "/embed -f ")
+
+            if os.path.isfile(self.__output_dm_fname):
+                command += self.__output_dm_fname
+            else: # should be impossible
+                print("Smash Embedding encountered an error. Please try again.")
+                sys.exit(1)
+
+            if not d:
+                FNULL = open(os.devnull, 'w')
+                sp.Popen(command, shell=True, stdout=FNULL, stderr=sp.STDOUT,\
+                 close_fds=True).wait()
+            else:
+                sp.Popen(command, shell=True, stderr=sp.STDOUT).wait()
+
+            try:
+                sippl_embed = np.loadtxt(fname="outE.txt", dtype=float)
+                if self.__num_dimensions > sippl_embed.shape[1]:
+                    raise ValueError("Error: Number of dimensions specified \
+                    greater than dimensions of input data")
+                sippl_feat = sippl_embed[:, :self.__num_dimensions]
+                os.chdir(prev_wd)
+                self._output = sippl_feat
+                return self._output
+            except IOError or IndexError:
+                print "Error: Embedding unsuccessful. Please try again."
+        else:
+            self._ouput = self._ouput.astype(np.float64)
+            try:
+
+                try:
+                    y_ = self._data_additional.data
+                except AttributeError:
+                    y_ = None
+
+                self._output = self.__embedding_class.transform(\
+                self._ouput, y_, init)
+                return self._output
+
+            except ValueError:
+                self._ouput = self._ouput + self._ouput.T
+
+                try:
+                    y_ = self._data_additional.data
+                except AttributeError:
+                    y_ = None
+
+                try:
+                    self._output = self.__embedding_class.transform(self._ouput, y_,\
+                    init)
+                    return self._output
+                except:
+                    warnings.warn(\
+                    "Embedding error: please ensure input embedding class takes\
+                    distance matrices as input.")
+                    return None
 
 
 
@@ -359,9 +485,9 @@ def cleanup():
     '''
 
     prev_wd = os.getcwd()
-    os.chdir(cwd)
-    if os.path.exists(cwd + "/" + temp_dir):
-        command = "rm -r " + cwd + "/" + temp_dir
+    os.chdir(CWD)
+    if os.path.exists(CWD + "/" + TEMP_DIR):
+        command = "rm -r " + CWD + "/" + TEMP_DIR
         sp.Popen(command, shell=True, stderr=sp.STDOUT).wait()
     os.chdir(prev_wd)
 

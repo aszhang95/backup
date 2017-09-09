@@ -1,5 +1,5 @@
-from d3m_SmashClustering import *
-from d3m_series_util import *
+from smashClustering import *
+from seriesUtil import *
 from sklearn import cluster
 
 # declare bin location relative to script path
@@ -27,14 +27,18 @@ preproc=q, force_vect_preproc=True)
 meanshift_cc = cluster.MeanShift()
 
 # instantiate clustering class
-# default cluster_class is sklearn.cluster.KMeans and num_cluster default is 8
-scc = SmashClustering(bin_path_=bin_path, input_class_=data_class, cluster_class=meanshift_cc)
+# default cluster_class is sklearn.cluster.KMeans and numCluster default is 8
+scc = SmashClustering(bin_path=bin_path, input_class=data_class, cluster_class=meanshift_cc)
 
 # fit and return distance matrix of input timeseries data (repeat calculation 3 times)
 print(scc.fit(nr=3))
 
 # call clustering class predict method on fitted input data
 print(scc.predict(nr=3))
+
+# can switch clustering class; first need to initialize then set
+KMeans_cc= cluster.KMeans(n_clusters=4)
+scc.cluster_class = KMeans_cc
 
 # can also call fit_predict for convenience (note: distance matrix will be recalculated)
 print(scc.fit_predict(nr=3))

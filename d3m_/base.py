@@ -1,4 +1,5 @@
-from abc import ABCMeta
+import abc
+
 
 
 class PrimitiveBase(object):
@@ -6,4 +7,4 @@ class PrimitiveBase(object):
     A base class for all TA1 primitives.
     """
 
-    __metaclass__ = ABCMeta
+    __metaclass__ = abc.ABCMeta

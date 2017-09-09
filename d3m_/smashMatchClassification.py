@@ -1,18 +1,26 @@
-import os, sys, time, csv, math, uuid, atexit, pdb, warnings
+import os
+import sys
+import time
+import csv
+import math
+import uuid
+import atexit
+import pdb
+import warnings
 import subprocess as sp
 import numpy as np
 from numpy import nan
 import pandas as pd
-import SupervisedLearningPrimitiveBase
+import supervisedLearningPrimitiveBase
 
 
 
 # Global Variables: (ensures safe R/W of smashmatch)
-prefix = str(uuid.uuid4())
-prefix = prefix.replace("-", "")
-temp_dir = str(uuid.uuid4())
-cwd = os.getcwd()
-# prefix = "resx" # for testing purposes only
+PREFIX = str(uuid.uuid4())
+PREFIX = PREFIX.replace("-", "")
+TEMP_DIR = str(uuid.uuid4())
+CWD = os.getcwd()
+# PREFIX = "resx" # for testing purposes only
 
 
 
@@ -35,23 +43,22 @@ class LibFile:
 
 
 
-# class SmashMatchClassification(SupervisedLearningPrimitiveBase):
-class SmashMatchClassification():
+class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearningPrimitiveBase):
     '''
     Class for SmashMatch-based classification; I/O modeled after
     sklearn.SVM.SVC classifier and inherits from
      SupervisedLearningPrimitiveBase
 
     Inputs -
-        bin_path_(string): Path to smashmatch as a string
-        preproc_ ([vectorized] function): function to quantize timeseries;
+        bin_path(string): Path to smashmatch as a string
+        preproc ([vectorized] function): function to quantize timeseries;
             must be vectorized (recommend np.vectorize())
         force_vect_preproc (boolean): if quantizer function not vectorized, can
             be vectorized before fed into class by setting
             this parameter to be True
 
     Attributes:
-        bin_path_(string): Path to smashmatch as a string
+        bin_path(string): Path to smashmatch as a string
         classes (np.1Darray): class labels fitted into the model;
             also column headers for predict functions
             NOTE: cannot be changed once fitted - rerun fit to use new classes
@@ -59,13 +66,13 @@ class SmashMatchClassification():
     '''
 
     # lib_files = list of library file names or LibFile Objects
-    def __init__(self, bin_path_, preproc_=None, force_vect_preproc=True):
-        assert os.path.isfile(bin_path_), "Error: invalid bin path."
-        self.__bin_path = os.path.abspath(bin_path_)
+    def __init__(self, bin_path, preproc=None, force_vect_preproc=True):
+        assert os.path.isfile(bin_path), "Error: invalid bin path."
+        self.__bin_path = os.path.abspath(bin_path)
         prev_wd = os.getcwd()
-        os.chdir(cwd)
-        sp.Popen("mkdir "+ temp_dir, shell=True, stderr=sp.STDOUT).wait()
-        self.__file_dir = cwd + "/" + temp_dir
+        os.chdir(CWD)
+        sp.Popen("mkdir "+ TEMP_DIR, shell=True, stderr=sp.STDOUT).wait()
+        self.__file_dir = CWD + "/" + TEMP_DIR
         os.chdir(prev_wd)
         self.__classes = []
         self.__lib_files = [] # list of LibFile objects
@@ -73,10 +80,10 @@ class SmashMatchClassification():
         self.__command = self.__bin_path
         self.__input = None
         self.__mapper = {}
-        if force_vect_preproc and preproc_ is not None:
-            self.__preproc = np.vectorize(preproc_)
+        if force_vect_preproc and preproc is not None:
+            self.__preproc = np.vectorize(preproc)
         else:
-            self.__preproc = preproc_
+            self.__preproc = preproc
 
 
     @property
@@ -196,7 +203,7 @@ class SmashMatchClassification():
                 return rv
 
 
-    def read_series(self, filename, delimiter_, quantize=False):
+    def read_series(self, filename, delimiter, quantize=False):
         '''
         Helper method:
         Reads in file (of potentially mixed line lengths)
@@ -219,7 +226,7 @@ class SmashMatchClassification():
         with open(filename, 'r') as f:
             for line in f:
                 formatted_row = []
-                row = line.strip().split(delimiter_)
+                row = line.strip().split(delimiter)
                 if row[-1] == "":
                     row = row[:-1]
                 row_len = len(row)
@@ -240,8 +247,8 @@ class SmashMatchClassification():
     def get_unique_name(self, lib):
         '''
         Helper method:
-        Generates unique filename with the prefix "lib_" if the input
-            file is a library files or no prefix if it is not a library file
+        Generates unique filename with the PREFIX "lib_" if the input
+            file is a library files or no PREFIX if it is not a library file
 
         Inputs -
             lib (boolean) whether the generated name is for a library file (True)
@@ -487,7 +494,7 @@ class SmashMatchClassification():
                 input_length_command = " -x " + str(input_length)
 
             self.__command += (input_name_command + self.__lib_command + "-T symbolic -D row ")
-            self.__command += ("-L true true true -o " + prefix + " -d false")
+            self.__command += ("-L true true true -o " + PREFIX + " -d false")
             self.__command += (" -n " + str(num_repeats))
 
             if input_length is not None:
@@ -497,7 +504,7 @@ class SmashMatchClassification():
 
             os.chdir(self.__file_dir)
             sp.Popen(self.__command, shell=True, stderr=sp.STDOUT).wait()
-            os.chdir(cwd)
+            os.chdir(CWD)
 
             if not self.has_smashmatch(): # should theoretically be impossible \
             # to return False, but for safety
@@ -517,9 +524,9 @@ class SmashMatchClassification():
 
         os.chdir(self.__file_dir)
         sp.Popen("rm input_*", shell=True, stderr=sp.STDOUT).wait()
-        sp.Popen("rm " + prefix + "*", shell=True, stderr=sp.STDOUT).wait()
+        sp.Popen("rm " + PREFIX + "*", shell=True, stderr=sp.STDOUT).wait()
         self.__command = self.__bin_path
-        os.chdir(cwd)
+        os.chdir(CWD)
 
 
     def has_smashmatch(self):
@@ -534,8 +541,8 @@ class SmashMatchClassification():
                 files aren't present
         '''
 
-        if prefix + "_prob" in os.listdir(self.__file_dir) and \
-        prefix + "_class" in os.listdir(self.__file_dir):
+        if PREFIX + "_prob" in os.listdir(self.__file_dir) and \
+        PREFIX + "_class" in os.listdir(self.__file_dir):
             return True
         else:
             return False
@@ -636,7 +643,7 @@ class SmashMatchClassification():
 
         compute_res = self.compute(x, il, nr, no_details, force)
         if compute_res:
-            class_path = self.__file_dir + "/" + prefix + "_class"
+            class_path = self.__file_dir + "/" + PREFIX + "_class"
             with open(class_path, 'r') as f:
                 raw = f.read().splitlines()
             formatted = []
@@ -684,7 +691,7 @@ class SmashMatchClassification():
 
         compute_res = self.compute(x, il, nr, no_details, force)
         if compute_res:
-            class_path = self.__file_dir + "/" + prefix + "_prob"
+            class_path = self.__file_dir + "/" + PREFIX + "_prob"
             probs = np.loadtxt(fname=class_path, dtype=float)
             return probs
         else:
@@ -744,7 +751,7 @@ class SmashMatchClassification():
 
         os.chdir(self.__file_dir)
         sp.Popen("rm lib_*", shell=True, stderr=sp.STDOUT).wait()
-        os.chdir(cwd)
+        os.chdir(CWD)
         self.__classes = []
         self.__lib_files = []
         self.__lib_command = " -F "
@@ -758,9 +765,9 @@ def cleanup():
     '''
 
     prev_wd = os.getcwd()
-    os.chdir(cwd)
-    if os.path.exists(cwd + "/" + temp_dir):
-        command = "rm -r " + cwd + "/" + temp_dir
+    os.chdir(CWD)
+    if os.path.exists(CWD + "/" + TEMP_DIR):
+        command = "rm -r " + CWD + "/" + TEMP_DIR
         sp.Popen(command, shell=True, stderr=sp.STDOUT).wait()
     os.chdir(prev_wd)
 

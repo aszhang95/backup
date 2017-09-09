@@ -1,6 +1,6 @@
 # import necessary libraries and utility files
-from d3m_SmashDistanceMetricLearning import *
-from d3m_series_util import *
+from smashDistanceMetricLearning import *
+from seriesUtil import *
 
 # declare bin location relative to script path
 bin_path = "../bin"
@@ -23,7 +23,7 @@ preproc=q, force_vect_preproc=True)
 
 
 # create SmashDistanceMatrixLearning class to run methods
-dmlc = SmashDistanceMetricLearning(bin_path_=bin_path, input_class_=data_class)
+dmlc = SmashDistanceMetricLearning(bin_path=bin_path, input_class=data_class)
 
 # return distance matrix of input timeseries data (repeat calculation 3 times)
 print(dmlc.fit(nr=3))

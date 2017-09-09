@@ -1,10 +1,17 @@
-import os, csv, pdb, tempfile, ntpath, uuid, atexit, sys
+import os
+import csv
+import pdb
+import tempfile
+import ntpath
+import uuid
+import atexit
+import sys
 import subprocess as sp
 import numpy as np
 from numpy import nan
 import pandas as pd
 from sklearn import cluster
-from d3m_unsup_wo_output_class import *
+from unsupervisedSeriesLearningPrimitiveBase import *
 
 
 
@@ -12,35 +19,35 @@ from d3m_unsup_wo_output_class import *
 
 
 # global variables
-cwd = os.getcwd()
-temp_dir = str(uuid.uuid4())
-temp_dir = temp_dir.replace("-", "")
+CWD = os.getcwd()
+TEMP_DIR = str(uuid.uuid4())
+TEMP_DIR = TEMP_DIR.replace("-", "")
 
 
 
-class SmashClustering(Unsupervised_Series_Learning_Base):
+class SmashClustering(UnsupervisedSeriesLearningBase):
     '''
     Object for running Data Smashing to calculate the distance matrix between n
         timeseries and using sklearn.cluster classes to cluster;
-        inherits from Unsupervised_Series_Learning_Base API
+        inherits from UnsupervisedSeriesLearningBase API
 
     Inputs -
-        bin_path_(string): Path to Smash binary as a string
+        bin_path(string): Path to Smash binary as a string
         quantiziation (function): quantization function for input timeseries
             data
 
     Attributes:
         bin_path (string): path to bin/smash
         quantizer (function): function to quantify input data
-        num_dimensions (int): number of dimensions used for embedding
+        num_dimensions (int): number of dimensions used for clustering
 
         (Note: bin_path and num_dimensions can be set by assignment,
         input and quantizer must be set using custom method)
     '''
 
-    def __init__(self, bin_path_, input_class_, n_clus=8, cluster_class=None):
-        self.__bin_path = os.path.abspath(bin_path_)
-        self.__input_class = input_class_
+    def __init__(self, bin_path, input_class, n_clus=8, cluster_class=None):
+        self.__bin_path = os.path.abspath(bin_path)
+        self.__input_class = input_class
         self._data = self.__input_class.data
         self.__num_clusters = n_clus
         if cluster_class is None:
@@ -49,12 +56,12 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
         else:
             self.__cluster_class = cluster_class
         prev_wd = os.getcwd()
-        os.chdir(cwd)
-        sp.Popen("mkdir "+ temp_dir, shell=True, stderr=sp.STDOUT).wait()
-        self.__file_dir = cwd + "/" + temp_dir
+        os.chdir(CWD)
+        sp.Popen("mkdir "+ TEMP_DIR, shell=True, stderr=sp.STDOUT).wait()
+        self.__file_dir = CWD + "/" + TEMP_DIR
         os.chdir(prev_wd)
         self.__quantized_data  = self.__input_class.get()
-        self._problem_type = "clusering"
+        self._problem_type = "clustering"
         self.__input_dm_fh = None
         self.__input_dm_fname = None
         self.__output_dm_fname = None
@@ -158,8 +165,8 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
         self.__input_dm_fname = self.path_leaf(self.__input_dm_fh.name)
 
 
-    def run_dm(self, quantized, first_run_dm, \
-    max_len=None, num_run_dms=5, details=False):
+    def get_dm(self, quantized, first_run, \
+    max_len=None, num_get_dms=5, details=False):
         '''
         Helper function:
         Calls bin/smash to compute the distance matrix on the given input
@@ -167,7 +174,7 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
 
         Inputs -
             max_len (int): max length of data to use
-            num_run_dms (int): number of runs of Smash to compute distance
+            num_get_dms (int): number of runs of Smash to compute distance
                 matrix (refines results)
             details (boolean): do (True) or do not (False) show cpu usage of
                 Data Smashing algorithm
@@ -177,7 +184,7 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
             (shape n_samples x n_samples)
         '''
 
-        if not first_run_dm:
+        if not first_run:
             os.unlink(self.__input_dm_fh.name)
             self.__command = (self.__bin_path + "/smash")
 
@@ -190,8 +197,8 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
 
         if max_len is not None:
             self.__command += (" -L " + str(max_len))
-        if num_run_dms is not None:
-            self.__command += (" -n " + str(num_run_dms))
+        if num_get_dms is not None:
+            self.__command += (" -n " + str(num_get_dms))
         if not details:
             self.__command += (" -t 0")
 
@@ -238,20 +245,20 @@ class SmashClustering(Unsupervised_Series_Learning_Base):
                 data not properly quantized .")
             else:
                 if self.__input_dm_fh is None:
-                    self._output = self.run_dm(False, True, ml, nr, d)
+                    self._output = self.get_dm(False, True, ml, nr, d)
                     self.__cluster_class.fit(self._output. y)
                     return self._output
                 else:
-                    self._output = self.run_dm(False, False, ml, nr, d)
+                    self._output = self.get_dm(False, False, ml, nr, d)
                     self.__cluster_class.fit(self._output, y)
                     return self._output
         else:
             if self.__input_dm_fh is None:
-                self._output = self.run_dm(True, True, ml, nr, d)
+                self._output = self.get_dm(True, True, ml, nr, d)
                 self.__cluster_class.fit(self._output)
                 return self._output
             else:
-                self._output = self.run_dm(True, False, ml, nr, d)
+                self._output = self.get_dm(True, False, ml, nr, d)
                 self.__cluster_class.fit(self._output)
                 return self._output
 
@@ -339,9 +346,9 @@ def cleanup():
     '''
 
     prev_wd = os.getcwd()
-    os.chdir(cwd)
-    if os.path.exists(cwd + "/" + temp_dir):
-        command = "rm -r " + cwd + "/" + temp_dir
+    os.chdir(CWD)
+    if os.path.exists(CWD + "/" + TEMP_DIR):
+        command = "rm -r " + CWD + "/" + TEMP_DIR
         sp.Popen(command, shell=True, stderr=sp.STDOUT).wait()
     os.chdir(prev_wd)
 

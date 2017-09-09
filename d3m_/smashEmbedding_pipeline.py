@@ -1,6 +1,6 @@
 # import relevant libraries
-from d3m_SmashEmbedding import *
-from d3m_series_util import *
+from smashEmbedding import *
+from seriesUtil import *
 from sklearn import manifold
 
 # declare bin location relative to script path
@@ -22,15 +22,22 @@ def q(x):
 data_class = Input(data=X, is_categorical=True, is_synchronized=True,\
 preproc=q, force_vect_preproc=True)
 
+# decide on number of dimensions to use (default is 2)
+num_dim = 2
+
+# instantiate another embedding class if desired
+# e.g. sklearn.manifold.MDS
+mds_emb = manifold.MDS(n_components=num_dim, dissimilarity="precomputed")
+
 # create SmashEmbedding class to run methods (require 2 dimensions in embedding)
-sec = SmashEmbedding(bin_path_=bin_path, input_class_=data_class, n_dim=2)
+sec = SmashEmbedding(bin_path=bin_path, input_class=data_class, n_dim=num_dim, embed_class=mds_emb)
 
 # return distance matrix of input timeseries data (repeat calculation 3 times)
+# NOTE: fits both default Sippl Embedding and user-defined custom embedding class
 print(sec.fit(nr=3))
 
 # return embedded coordinates using Sippl embedding (default) on distance matrix
-print(sec.fit_transform(nr=3))
+print(sec.fit_transform(nr=3, embedder='default'))
 
-# use other embedding function to embed the data e.g. sklearn.manifold.MDS
-mds_emb = manifold.MDS(n_components=sec.num_dimensions, dissimilarity="precomputed")
-print(sec.fit_transform(nr=3, embedder=mds_emb))
+# return embedded coordinates using Sippl embedding (default) on distance matrix
+print(sec.fit_transform(nr=3, embedder='custom'))

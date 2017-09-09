@@ -46,24 +46,31 @@ class Input(object):
     in which case np.Nan may occur not just as right padding in order
     to signal missing data in such synchronized streams.
 
+    Property force_vect_preproc can be set to true if input preproc function
+    is not already vectorized (necessary for mapping over unquantized data)
+
     Function preproc is used for modifying the input data
     (returned from get()). The expected use case is quantization,
     but can be used for general pre-processing.
 
     Function get returns preproced data
-
     """
+
     def __init__(self,data=np.empty([1,1]),
                  is_categorical=False,
                  is_synchronized=False,
-                 preproc=None):
+                 preproc=None, force_vect_preproc=True):
         self._data=data
         self.is_categorical=is_categorical
         self.check_data()
         self.is_synchronized=is_synchronized
         if preproc is not None:
-            self._preproc=preproc
-            self.check_preproc(preproc)
+            if force_vect_preproc:
+                self._preproc=np.vectorize(preproc)
+            else:
+                self._preproc=preproc
+            self.check_preproc(self._preproc)
+
 
     @property
     def data(self):
@@ -79,12 +86,16 @@ class Input(object):
         return self._preproc
 
     @preproc.setter
-    def preproc(self,func):
-        if self.check_preproc(func):
+    def preproc(self,func,force_vect_preproc=True):
+        if force_vect_preproc:
+            self._preproc = np.vectorize(func)
+        else:
             self._preproc=func
+        self.check_preproc(self._preproc)
+
 
     def get(self):
-        if self.__preproc is not None:
+        if self._preproc is not None:
             return self._preproc(self._data)
         else:
             print("Error: no preproc function defined")
@@ -127,7 +138,7 @@ class Input(object):
 
 
 
-class Unsupervised_Series_Learning_Base(object):
+class UnsupervisedSeriesLearningBase(object):
     """
     # Unsupervised Series Learning Abstract Base class
 
@@ -158,7 +169,7 @@ class Unsupervised_Series_Learning_Base(object):
     + fit_transform :  standard interpretation as in sklearn
     + predict :  standard interpretation as in sklearn
     + transform :  standard interpretation as in sklearn
-    + fit_preditc :  standard interpretation as in sklearn
+    + fit_predict :  standard interpretation as in sklearn
     + predict_proba :  standard interpretation as in sklearn
     + predict_log_proba :  standard interpretation as in sklearn
 

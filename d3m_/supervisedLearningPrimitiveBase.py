@@ -1,12 +1,13 @@
 import abc
-from base import PrimitiveBase
+import base
+
 
 
 __all__ = ('SupervisedLearningPrimitiveBase')
 
 
 
-class SupervisedLearningPrimitiveBase(PrimitiveBase):
+class SupervisedLearningPrimitiveBase(base.PrimitiveBase):
     def __init__(self):
         """
         Initializes the supervised learning primitive.
