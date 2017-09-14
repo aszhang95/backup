@@ -1,13 +1,15 @@
+#!/usr/bin/python
+
 from smashClustering import *
-from seriesUtil import *
+from primitives_interfaces.utils.series import *
 from sklearn import cluster
 
 # declare bin location relative to script path
-bin_path = "../bin"
+bin_path = "./data_smashing_/bin"
 
 # Reading in data from deploy_scripts/examples/data.dat and setting dtype=np.int32
 # because this input data is categorical
-X = read_series("../deploy_scripts/examples/data.dat", delimiter=" ").values.astype(np.int32)
+X = read_series("./data_/data.dat", delimiter=" ").values.astype(np.int32)
 
 # define quantizer function
 def q(x):
@@ -41,7 +43,7 @@ scc.cluster_class = KMeans_cc
 print(scc.fit_predict(nr=3))
 
 # second test on known dataset of 3 classes
-X2 = read_series("../data_small/COMBINED_TEST", delimiter=" ").values
+X2 = read_series("./data_/COMBINED_TEST1", delimiter=" ").values
 data_class2 = Input(data=X2, is_categorical=True, is_synchronized=True,\
 preproc=q)
 scc.data = data_class2
@@ -56,3 +58,11 @@ print(scc.fit_predict(nr=3))
 scc.cluster_class = meanshift_cc
 print(scc.fit(nr=3))
 print(scc.fit_predict(nr=3))
+
+
+# can switch clustering class; first need to initialize then set
+# is_affinity=True implies we are usig an affinity matrix, so larger values
+# imply more similarity, as opposed to a distance matrix
+Spectral_cc = cluster.SpectralClustering(n_clusters=3,affinity='precomputed')
+scc.cluster_class = Spectral_cc
+print "spectral clustering: ", scc.fit_predict(nr=3,is_affinity=True)

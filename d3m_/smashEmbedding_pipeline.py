@@ -1,14 +1,16 @@
+#!/usr/bin/python
+
 # import relevant libraries
 from smashEmbedding import *
-from seriesUtil import *
+from primitives_interfaces.utils.series import *
 from sklearn import manifold
 
 # declare bin location relative to script path
-bin_path = "../bin"
+bin_path = "./data_smashing_/bin/"
 
 # Reading in data from deploy_scripts/examples/data.dat and setting dtype=np.int32
 # because this input data is categorical
-X = read_series("../deploy_scripts/examples/data.dat", delimiter=" ").values.astype(np.int32)
+X = read_series("./data_/data.dat", delimiter=" ").values.astype(np.int32)
 
 # define quantizer function
 def q(x):

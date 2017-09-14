@@ -11,8 +11,8 @@ import subprocess as sp
 import numpy as np
 from numpy import nan
 import pandas as pd
+from primitives_interfaces.utils.series import apply, write_series
 import supervisedLearningPrimitiveBase
-from seriesUtil import apply
 
 
 
@@ -121,6 +121,12 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
         Cannot set state for SmashMatchClassification:\
         SmashMatch does not classify based on models.')
         pass
+
+
+    # for interfacing with util functions
+    @property
+    def file_dir(self):
+        return self.__file_dir
 
 
     ### helper functions for library files:
@@ -311,7 +317,7 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
             df = X.loc[X.level == label_]
             df = df.drop("level", 1)
             fname = self.get_unique_name(True)
-            self.write_out_series(fname, df)
+            write_series(input_data=df, file_dir=self.__file_dir, filename=fname)
             lib_files.append(LibFile(class_num, label_, fname))
             class_num += 1
         return lib_files
@@ -396,7 +402,7 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
         return
 
 
-    def write_out_nda(self, array):
+    def write_series_nda(self, array):
         '''
         Helper method:
         Writes out input data to file usable by SmashMatch (delimited by space)
@@ -411,35 +417,14 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
 
         self.__input = array.astype(np.int32)
         rows = array.tolist()
+        to_write = []
+        for row in rows:
+            to_write.append( [int(x) for x in row if not pd.isnull(x)] )
         fname = self.get_unique_name(False)
         with open(self.__file_dir + "/" + fname, "w") as f:
             wr = csv.writer(input_fh, delimiter=" ")
-            wr.writerows(rows)
-        return fname
-
-
-    def write_out_series(self, filename, df_):
-        '''
-        Helper method:
-        Writes out pd.DataFrame to file to usable by SmashMatch (delimited by
-            space, each line=unique timeseries)
-
-        Inputs -
-            filename (string): name of output file
-            df (pd.DataFrame): timeseries to be written out
-
-        Outputs -
-            (None)
-        '''
-        assert(isinstance(df_, pd.DataFrame)), "Error: argument df is not type pandas.DataFrame"
-
-        data = df_.values.tolist()
-        to_write = []
-        for row in data:
-            to_write.append( [int(x) for x in row if not pd.isnull(x)] )
-        with open(self.__file_dir + "/" + filename, "w") as f:
-            wr = csv.writer(f, delimiter=" ")
             wr.writerows(to_write)
+        return fname
 
 
     def compute(self, X, input_length, num_repeats, no_details, force):
@@ -469,11 +454,11 @@ class SmashMatchClassification(supervisedLearningPrimitiveBase.SupervisedLearnin
 
             if isinstance(X, np.ndarray):
                 self.__input = X
-                input_name_command = " -f " + self.write_out_nda(X)
+                input_name_command = " -f " + self.write_series_nda(X)
             elif isinstance(X, pd.DataFrame): # being explicit
                 self.__input = X
                 fname = self.get_unique_name(False)
-                self.write_out_series(fname, X)
+                write_series(input_data=X, file_dir=self.__file_dir, filename=fname)
                 input_name_command = " -f " + fname
             else: # theoretically should be impossible, but to be explicit
                 raise ValueError("Error: unsupported types for X. X can only be of type \

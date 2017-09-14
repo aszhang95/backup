@@ -1,8 +1,5 @@
 import os
-import csv
 import pdb
-import tempfile
-import ntpath
 import uuid
 import atexit
 import sys
@@ -10,12 +7,9 @@ import subprocess as sp
 import numpy as np
 from numpy import nan
 import pandas as pd
-from unsupervisedSeriesLearningPrimitiveBase import *
+from primitives_interfaces.unsupervised_learning_series_modeling import *
+from primitives_interfaces.utils.series import write_series
 
-
-
-
-# Potential known bug: does tempfile create NamedTemporaryFile names with hyphens?
 
 
 # global variables
@@ -85,6 +79,11 @@ class SmashFeaturization(UnsupervisedSeriesLearningBase):
         return self._data
 
 
+    @property
+    def quantized_data(self):
+        return self.__quantized_data
+
+
     @bin_path.setter
     def bin_path(self, new_bin_path):
         self.__bin_path = os.path.abspath(new_bin_path)
@@ -112,55 +111,10 @@ class SmashFeaturization(UnsupervisedSeriesLearningBase):
         self.__quantized_data = self.__input_class.get()
 
 
-    def path_leaf(self, path):
-        '''
-        Helper function:
-        Returns filename from a given path/to/file
-        Taken entirely from Lauritz V. Thaulow on
-        https://stackoverflow.com/questions/8384737
-
-        Input -
-            path (string): path/to/the/file
-
-        Returns -
-            filename (string)
-        '''
-
-        head, tail = ntpath.split(path)
-        return tail or ntpath.basename(head)
-
-
-    def write_series(self, quantized):
-        '''
-        Helper function:
-        Writes out input numpy.ndarray to file to interface with Data Smashing
-            binary
-
-        Inputs -
-            quantized (boolean): use quantized data (True) or original data
-                (False)
-
-        Outputs -
-            (None)
-        '''
-
-        if quantized:
-            input_data = self.__quantized_data
-        else:
-            input_data = self._data
-
-        data = input_data.tolist()
-
-        to_write = []
-        for row in data:
-            to_write.append( [int(x) for x in row if not pd.isnull(x)] )
-
-        self.__input_dm_fh = tempfile.NamedTemporaryFile(\
-        dir=self.__file_dir, delete=False)
-        wr = csv.writer(self.__input_dm_fh, delimiter=" ")
-        wr.writerows(to_write)
-        self.__input_dm_fh.close()
-        self.__input_dm_fname = self.path_leaf(self.__input_dm_fh.name)
+    # for interfacing with util functions
+    @property
+    def file_dir(self):
+        return self.__file_dir
 
 
     def run_dm(self, quantized, first_run_dm, max_len=None, \
@@ -187,9 +141,12 @@ class SmashFeaturization(UnsupervisedSeriesLearningBase):
             self.__command = (self.__bin_path + "/smash")
 
         if not quantized:
-            self.write_series(False)
+            self.__input_dm_fh, self.__input_dm_fname = write_series(input_data=self._data,\
+                                                                    file_dir=self.__file_dir)
         else:
-            self.write_series(True)
+            self.__input_dm_fh, self.__input_dm_fname = write_series(input_data=self.__quantized_data,\
+                                                                    file_dir=self.__file_dir)
+
 
         self.__command += " -f " + self.__input_dm_fname + " -D row -T symbolic"
 

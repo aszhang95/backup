@@ -1,8 +1,9 @@
+#!/usr/bin/python
 # start from working directory of where SmashMatchClassification is located
 from smashMatchClassification import *
 
 # Classification of TEST0 from ../data_small using SmashMatch
-bin_path = "../bin/smashmatch"
+bin_path = "./data_smashing_/bin/smashmatch"
 
 # define quantizer function
 def q(x):
@@ -17,9 +18,9 @@ def q(x):
 clf = SmashMatchClassification(bin_path=bin_path, preproc=q)
 
 # quantize and read in library files as pd.DataFrame
-lib0 = clf.read_series("../data_small/LIB0", delimiter=" ", quantize=True)
-lib1 = clf.read_series("../data_small/LIB1", delimiter=" ", quantize=True)
-lib2 = clf.read_series("../data_small/LIB2", delimiter=" ", quantize=True)
+lib0 = clf.read_series("./data_/LIB0", delimiter=" ", quantize=True)
+lib1 = clf.read_series("./data_/LIB1", delimiter=" ", quantize=True)
+lib2 = clf.read_series("./data_/LIB2", delimiter=" ", quantize=True)
 
 # map library files to class/label numbers
 # i.e. all timeseries in lib0 are of class 0, etc.
@@ -34,7 +35,7 @@ X, y = clf.condense(maps)
 clf.fit(X, y)
 
 # quantize and read in the timeseries data to be classified as pd.DataFrame
-data = clf.read_series("../data_small/TEST0", delimiter=" ", quantize=True)
+data = clf.read_series("./data_/TEST0", delimiter=" ", quantize=True)
 
 # run algorithm twice, and print the results
 print(clf.predict(data, nr=2))

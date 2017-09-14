@@ -1,8 +1,5 @@
 import os
-import csv
 import pdb
-import tempfile
-import ntpath
 import uuid
 import atexit
 import sys
@@ -11,11 +8,9 @@ import numpy as np
 from numpy import nan
 import pandas as pd
 from sklearn import cluster
-from unsupervisedSeriesLearningPrimitiveBase import *
+from primitives_interfaces.unsupervised_learning_series_modeling import *
+from primitives_interfaces.utils.series import write_series
 
-
-
-# Potential known bug: does tempfile create NamedTemporaryFile names with hyphens?
 
 
 # global variables
@@ -96,6 +91,11 @@ class SmashClustering(UnsupervisedSeriesLearningBase):
         return self._data
 
 
+    @property
+    def quantized_data(self):
+        return self.__quantized_data
+
+
     @data.setter
     def data(self, input_data):
         if not isinstance(input_data,Input):
@@ -115,54 +115,10 @@ class SmashClustering(UnsupervisedSeriesLearningBase):
         self.__cluster_class = cc
 
 
-    def path_leaf(self, path):
-        '''
-        Helper function:
-        Returns filename from a given path/to/file
-            Taken entirely from Lauritz V. Thaulow on https://stackoverflow.com/questions/8384737
-
-        Input -
-            path (string): path/to/the/file
-
-        Returns -
-            filename (string)
-        '''
-
-        head, tail = ntpath.split(path)
-        return tail or ntpath.basename(head)
-
-
-    def write_series(self, quantized):
-        '''
-        Helper function:
-        Writes out input numpy.ndarray to file to interface with Data Smashing
-            binary
-
-        Inputs -
-            quantized (boolean): use quantized data (True) or original data
-                (False)
-
-        Outputs -
-            (None)
-        '''
-
-        if quantized:
-            input_data = self.__quantized_data
-        else:
-            input_data = self._data
-
-        data = input_data.tolist()
-
-        to_write = []
-        for row in data:
-            to_write.append( [int(x) for x in row if not pd.isnull(x)] )
-
-        self.__input_dm_fh = tempfile.NamedTemporaryFile(dir=self.__file_dir, \
-        delete=False)
-        wr = csv.writer(self.__input_dm_fh, delimiter=" ")
-        wr.writerows(to_write)
-        self.__input_dm_fh.close()
-        self.__input_dm_fname = self.path_leaf(self.__input_dm_fh.name)
+    # for interfacing with util functions
+    @property
+    def file_dir(self):
+        return self.__file_dir
 
 
     def get_dm(self, quantized, first_run, \
@@ -189,9 +145,11 @@ class SmashClustering(UnsupervisedSeriesLearningBase):
             self.__command = (self.__bin_path + "/smash")
 
         if not quantized:
-            self.write_series(False)
+            self.__input_dm_fh, self.__input_dm_fname = write_series(input_data=self._data,\
+                                                                    file_dir=self.__file_dir)
         else:
-            self.write_series(True)
+            self.__input_dm_fh, self.__input_dm_fname = write_series(input_data=self.__quantized_data,\
+                                                                    file_dir=self.__file_dir)
 
         self.__command += " -f " + self.__input_dm_fname + " -D row -T symbolic"
 
@@ -219,7 +177,7 @@ class SmashClustering(UnsupervisedSeriesLearningBase):
             print "Error: Smash calculation unsuccessful. Please try again."
 
 
-    def fit(self, ml=None, nr=None, d=False, y=None):
+    def fit(self, ml=None, nr=None, d=False, y=None, is_affinity=False):
         '''
         Uses Data Smashing to compute the distance matrix of the input time
         series and fit Data Smashing output to clustering class
@@ -246,24 +204,37 @@ class SmashClustering(UnsupervisedSeriesLearningBase):
             else:
                 if self.__input_dm_fh is None:
                     self._output = self.get_dm(False, True, ml, nr, d)
+                    self._output = self._output+self._output.T
+                    if is_affinity:
+                        self._output =np.reciprocal(self._output+1e-10)
                     self.__cluster_class.fit(self._output. y)
                     return self._output
                 else:
                     self._output = self.get_dm(False, False, ml, nr, d)
+                    self._output = self._output+self._output.T
+                    if is_affinity:
+                        self._output =np.reciprocal(self._output+1e-10)
+
                     self.__cluster_class.fit(self._output, y)
                     return self._output
         else:
             if self.__input_dm_fh is None:
                 self._output = self.get_dm(True, True, ml, nr, d)
+                self._output = self._output+self._output.T
                 self.__cluster_class.fit(self._output)
+                if is_affinity:
+                    self._output =np.reciprocal(self._output+1e-10)
                 return self._output
             else:
                 self._output = self.get_dm(True, False, ml, nr, d)
+                self._output = self._output+self._output.T
                 self.__cluster_class.fit(self._output)
+                if is_affinity:
+                    self._output =np.reciprocal(self._output+1e-10)
                 return self._output
 
 
-    def fit_predict(self, ml=None, nr=None, d=False, y=None):
+    def fit_predict(self, ml=None, nr=None, d=False, y=None, is_affinity=False):
         '''
         Returns output sklearn/clustering_class' fit_predict on distance matrix
         computed by Data Smashing algorithm and input y
@@ -280,12 +251,13 @@ class SmashClustering(UnsupervisedSeriesLearningBase):
                 from the input  using Data Smashing and sklearn cluster_class
         '''
 
-        self.__input_e = self.fit(ml, nr, d)
+        self.__input_e = self.fit(ml, nr, d,y=None,is_affinity=is_affinity)
         self._output = self.__cluster_class.fit_predict(self.__input_e, y)
         return self._output
 
 
-    def fit_transform(self, ml=None, nr=None, d=False, y=None):
+    def fit_transform(self, ml=None, nr=None, d=False, y=None,
+                      is_affinity=False):
         warnings.warn(\
         'Warning: "fit_transform" method for this class is undefined.')
         pass

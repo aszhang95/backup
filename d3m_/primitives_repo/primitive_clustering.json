@@ -1,0 +1,16 @@
+{
+    "id": "b679bef0-3674-321e-9b46-39e61bf7121f",
+    "name": "SmashClustering",
+    "common_name": "Smash Clustering",
+    "description": "Quantifier of universal similarity amongst arbitrary data streams without a priori knowledge, features, or training.",
+    "languages": ["Python"], 
+    "library": "sklearn",
+    "version": "1.0",
+    "is_class": true,
+    "algorithm_type": ["Clustering"],
+    "learning_type": ["Unsupervised learning"],
+    "tags": ["data smashing", "time series", "data stream", "unsupervised", "distance matrix"],
+    "team": "UChicago",
+    "schema_version": 1.0,
+    "interface_type": "unsupervised_learning_series_modeling"
+}

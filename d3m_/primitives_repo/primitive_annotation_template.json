@@ -1,0 +1,70 @@
+{
+"id": "REQUIRED", 
+"name": "Smash*",
+"common_name": "Smash *",
+"description": "Quantifier of universal similarity amongst arbitrary data streams without a priori knowledge, features, or training.",
+"languages": ["Python"], 
+"library": "REQUIRED",
+"version": "1.0",
+"source_code": "NOT REQUIRED",
+"is_class": true,
+"attributes": [
+	{
+	    "name": "REQUIRED",
+	    "description": "NOT REQUIRED",
+	    "type": "REQUIRED",
+	    "optional": true/false,
+	    "shape": "NOT REQUIRED"
+	}
+],
+"parameters": [
+	{
+	    "name": "REQUIRED",
+	    "description": "NOT REQUIRED",
+	    "type": "REQUIRED",
+	    "optional": true/false,
+	    "default": "NOT REQUIRED",
+	    "shape": "NOT REQUIRED",
+	    "size": "NOT REQUIRED",
+	    "is_hyperparameter": "REQUIRED BOOLEAN"
+	}
+],
+"methods_available": [
+	{
+	    "id": "REQUIRED",
+	    "name": "REQUIRED",
+	    "description": "NOT REQUIRED",
+	    "parameters": [],
+	    "returns": []
+	}
+],
+"algorithm_type": ["Clustering", "Dimensionality Reduction", "Instance Based"],
+"learning_type": ["Semi-supervised learning", "Supervised learning", "Unsupervised learning"], 
+"task_type": ["Data preprocessing", "Feature extraction", "Modeling", "Evaluation"],
+"tags": ["data smashing", "time series", "data stream", "unsupervised"],
+"is_deterministic": false,
+"handles_classification": true/false,
+"handles_regression": true/false,
+"handles_multiclass": true/false,
+"handles_multilabel": true/false,
+"input_type": ["DENSE", "SPARSE", "UNSIGNED_DATA", "LUPI"],
+"output_type": ["PREDICTIONS", "FEATURES"],
+"team": "UChicago",
+"metadata":  "FUTURE USE (OBJECT)",
+"schema_version": "REQUIRED",
+"build": "REQUIRED",
+"compute_resources": [
+	{
+	    "sample_size": "REQUIRED Float[100, 1, 10]",
+	    "sample_unit": "REQUIRED String[MB, GB, GB]",
+	    "num_nodes": "REQUIRED Int[]",
+	    "cores_per_node": "REQUIRED Int[]",
+	    "gpus_per_node": "REQUIRED Int[]",
+	    "mem_per_node": "REQUIRED Float[]",
+	    "disk_per_node": "REQUIRED Float[]",
+	    "mem_per_gpu": "REQUIRED Float[]",
+	    "expected_running_time": "REQUIRED Float[]"
+	}
+],
+"interface_type": "unsupervised_learning_series_modeling"
+}
