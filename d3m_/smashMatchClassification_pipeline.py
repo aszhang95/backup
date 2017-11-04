@@ -3,7 +3,7 @@
 from smashMatchClassification import *
 
 # Classification of TEST0 from ../data_small using SmashMatch
-bin_path = "./data_smashing_/bin/smashmatch"
+bin_path = "../../../data_smashing_/bin/smashmatch"
 
 # define quantizer function
 def q(x):

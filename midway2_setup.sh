@@ -1,6 +1,6 @@
 module load gsl
 module load boost/1.63.0+gcc-6.2
-module list
+module python
 
 cd zbase
 make -f Makefile
