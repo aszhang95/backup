@@ -209,7 +209,7 @@ class SpatialTemporalData(spatiotemporal_data_):
         if type_list is not None:
             indices_to_drop = []
             for row in data.itertuples(index=True, name='Pandas'):
-                entry_type = row[2]
+                entry_type = row[list(data.columns).index(type_col)+1] # universal that indices off by 1?
                 if not str(entry_type) in type_list:
                     rejected_types.add(entry_type)
                     indices_to_drop.append(row[0]) # do not modify df while looping through
@@ -232,7 +232,9 @@ class SpatialTemporalData(spatiotemporal_data_):
         max_lon = float(data.iloc[(data.shape[0]-1)]["Longitude"])
         lon_precision = len(str(min_lon).split('.')[1])
 
-        data.to_csv(self._file_dir+'/'+out_fname, na_rep="", header=False, index=False)
+        # have to drop ID column bc preproc doesn't expect that column to exist
+        data_no_id_col = deepcopy(data).drop(labels=id_col, axis=1)
+        data_no_id_col.to_csv(self._file_dir+'/'+out_fname, na_rep="", header=False, index=False)
 
         self._data_properties_dict = {'min_date': min_date, 'max_date': max_date, "min_lat":min_lat,\
                 "max_lat":max_lat, "min_lon":min_lon, "max_lon":max_lon,\
