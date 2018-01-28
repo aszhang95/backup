@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=ts1
-#SBATCH --output=ts1.out
-#SBATCH --error=ts1.err
+#SBATCH --job-name=ts2
+#SBATCH --output=ts2.out
+#SBATCH --error=ts2.err
 #SBATCH --partition=broadwl
 #SBATCH --nodes=1
 #SBATCH --exclusive
@@ -12,4 +12,4 @@
 module load midway2;
 module load python
 
-python /home/azhangs/zed/crimepred_/pycode/api/ts1_script.py
+python /home/azhangs/zed/crimepred_/pycode/api/ts2_script.py

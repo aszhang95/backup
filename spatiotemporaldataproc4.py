@@ -235,10 +235,11 @@ class SpatialTemporalData(spatiotemporal_data_):
         # have to drop ID column bc preproc doesn't expect that column to exist
         data_no_id_col = deepcopy(data).drop(labels=id_col, axis=1)
         data_no_id_col.to_csv(self._file_dir+'/'+out_fname, na_rep="", header=False, index=False)
+        data = data.sort_values([lat_col, lon_col])
 
         self._data_properties_dict = {'min_date': min_date, 'max_date': max_date, "min_lat":min_lat,\
                 "max_lat":max_lat, "min_lon":min_lon, "max_lon":max_lon,\
-                "num_attributes": data.shape[1], "to_preproc_df": data.sort_values([lat_col, lon_col], inplace=True), \
+                "num_attributes": data.shape[1], "to_preproc_df": data, \
                 "lat_precision": lat_precision, "lon_precision": lon_precision}
         self._data_properties_dict["accepted_types"] = set(type_list)
         self._data_properties_dict["rejected_types"] = rejected_types
@@ -309,9 +310,8 @@ class SpatialTemporalData(spatiotemporal_data_):
 
 
     def transform_with_binary(self, grid_size=200, force=False, date_col="Date", type_col="Primary Type",\
-                lat_col="Latitude", lon_col="Longitude",\
-                out_fname="data_formated.csv", loc_ts_pickle_fname="timeseries_grid_data.p",\
-                type_list=None, id_col="ID"):
+                lat_col="Latitude", lon_col="Longitude", export_df_name="grid_df_export.csv",\
+                out_fname="grid_ts_export.csv", type_list=None, id_col="ID"):
         """
         transforms tabular data to quantized time series corpora,
         given the spatial and temporal quantization parameters
@@ -348,7 +348,7 @@ class SpatialTemporalData(spatiotemporal_data_):
         if os.path.isfile(str(grid_size)):
                 os.remove(str(grid_size))
         command += (str(grid_size))
-        command += (" >& /dev/null")
+        # command += (" >& /dev/null")
 
         print("Calling bin/dataproc to process input data.")
         print("Command: {}".format(command))
@@ -370,63 +370,26 @@ class SpatialTemporalData(spatiotemporal_data_):
         self._dataset_df = pd.concat([type_df, loc_df, ts_df], axis=1)
         self._dataset_df = self._dataset_df.sort_values(\
         ["Latitude_start", "Latitude_stop", "Longitude_start", "Longitude_stop"])
-        print(self._dataset_df)
-        print("Beginning to update types column")
-        print("Start time: {}".format(datetime.datetime.now()))
+        # print(self._dataset_df)
+        # print("Beginning to update types column")
+        for dataset_row in self._dataset_df.itertuples(index=True, name="Pandas"):
+            lat_lb, lat_ub = dataset_row[2], dataset_row[3]
+            lon_lb, lon_ub = dataset_row[4], dataset_row[5]
 
-        # Now need to fill Event_type columns
-        count, total = 0, self._data_properties_dict["to_preproc_df"].shape[0]
-        event_type_problem_indices = []
-        for row in self._data_properties_dict["to_preproc_df"].itertuples(index=True, name="Pandas"):
-            # issue was indexing again, to_preproc_df has an extra column at the beginning
-            # print("Now processing row: {}".format(row[0]))
-            date_index = list(self._data_properties_dict["to_preproc_df"].columns).index(date_col)+1
-            # print("date_index = {}".format(date_index))
-            curr_date = row[date_index].date()
-            lat_index = list(self._data_properties_dict["to_preproc_df"].columns).index(lat_col)+1
-            # print("lat_index = {}".format(lat_index))
-            curr_lat = row[lat_index]
-            lon_index = list(self._data_properties_dict["to_preproc_df"].columns).index(lon_col)+1
-            # print("lon_index: {}".format(lon_index))
-            curr_lon = row[lon_index]
-            type_index = list(self._data_properties_dict["to_preproc_df"].columns).index(type_col)+1
-            # print("type_index = {}".format(type_index))
-            event_type = str(row[type_index])
-            # print("Row {} stats:\n date: {} \n, lat: {}\n, lon: {}\n, event_type:{}\n".format(row[0], curr_date,\
-            # curr_lat, curr_lon, event_type))
-            type_added = False
-            for dataset_row in self._dataset_df.itertuples(index=True, name="Pandas"):
-                lat_lb, lat_ub = dataset_row[2], dataset_row[3]
-                lon_lb, lon_ub = dataset_row[4], dataset_row[5]
-                # pdb.set_trace()
-                corr_date_col_index = list(self._dataset_df.columns).index(curr_date)+1
-                corr_date_col_value = int(dataset_row[corr_date_col_index])
-                # print("Latititude bounds: [{}, {})".format(lat_lb, lat_ub))
-                # print("Longitude bounds: [{}, {})".format(lon_lb, lon_ub))
-                if lat_lb <= curr_lat <= lat_ub and lon_lb <= curr_lon <= lon_ub\
-                and corr_date_col_value == 1:
-                    self._dataset_df.loc[dataset_row[0], "Event_type"].add(event_type)
-                    type_added = True
-                    break
+            match = self._data_properties_dict["to_preproc_df"].loc[\
+            (self._data_properties_dict["to_preproc_df"][lat_col] >= lat_lb) &\
+            (self._data_properties_dict["to_preproc_df"][lat_col] < lat_ub) &\
+            (self._data_properties_dict["to_preproc_df"][lon_col] >= lon_lb) &\
+            (self._data_properties_dict["to_preproc_df"][lon_col] < lon_ub)]
 
-            if not type_added:
-                id_col_index = list(self._data_properties_dict["to_preproc_df"].columns).index(id_col)+1
-                event_type_problem_indices.append(row[id_col_index])
+            self._dataset_df.at[dataset_row[0], "Event_type"] = set(match[type_col].unique())
+            # print("data set row {} has types {}".format(dataset_row[0], self._dataset_df.iloc[[dataset_row[0]]]["Event_type"]))
 
-            count += 1
-            print("Finished processing row {} of {}".format(count, total))
-
-            # if (float(count)/float(total)) % 0.1 == 0:
-            #     print("{} percent complete".format((float(count)/float(total))*100))
-
-        print("End time: {}".format(datetime.datetime.now()))
         os.chdir(cwd)
 
-        pickle.dump(self._data_properties_dict["dataset_df"], \
-        open(self._file_dir + "/" + loc_ts_pickle_fname, "wb"))
-
         self._data_properties_dict["dataset_df"] = self._dataset_df
-        self.prev_dataset_properties_dict["problem_event_IDs"] = event_type_problem_indices
+        # self._dataset_df.to_csv("../../../../../../project2/ishanu/CRIME/data/"+out_fname, na_rep="")
+        self._dataset_df.to_csv(path_or_buf=export_df_name, na_rep="")
 
         return self._dataset_df
 
