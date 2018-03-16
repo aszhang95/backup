@@ -1,5 +1,9 @@
 from spatiotemporaldataproc4 import *
-import sys
+import smtplib, os
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEBase import MIMEBase
+from email.MIMEText import MIMEText
+from email import Encoders
 
 # This will log you into your gmail account--this is where the mail will be sent from.
 gmail_user = sys.argv[1] # String e.g. mypassword

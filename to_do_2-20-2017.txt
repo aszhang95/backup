@@ -1,0 +1,5 @@
+To Do:
+  - Confirm numbers of transform against original dataset (all crimes in original dataset should be present in final)
+  - Parallelize reverse search?
+  - Figure out how to pull all entries after a certain date from live portal - and make it more generalized?
+  

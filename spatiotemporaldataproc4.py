@@ -394,7 +394,7 @@ class SpatialTemporalData(spatiotemporal_data_):
         return self._dataset_df
 
 
-    def transform(self, grid_size=100, force=False, date_col="Date", type_col="Primary Type",\
+    def transform(self, grid_size=None, force=False, date_col="Date", type_col="Primary Type",\
                 lat_col="Latitude", lon_col="Longitude", out_fname="data_formated.csv", \
                 loc_ts_pickle_fname="timeseries_grid_data.p", type_list=None):
         '''
@@ -420,45 +420,54 @@ class SpatialTemporalData(spatiotemporal_data_):
 
         curr_lat = self._data_properties_dict["min_lat"]
         curr_lon = self._data_properties_dict["min_lon"]
-
         # creating the lat, lon pairs
         for i in range(grid_size):
-            lat_start.append(curr_lat)
-            lat_stop.append(curr_lat+\
-            (self._data_properties_dict["delta_lat"]-float("0."+"0"*(self._data_properties_dict["lat_precision"]-1)+"1")))
-            lon_start.append(curr_lon)
-            lon_stop.append(curr_lon+\
-            (self._data_properties_dict["delta_lon"]-float("0."+"0"*(self._data_properties_dict["lon_precision"]-1)+"1")))
+            for j in range(grid_size):
+                lat_start.append(curr_lat)
+                lat_stop.append(curr_lat+\
+                (self._data_properties_dict["delta_lat"]-float("0."+"0"*(self._data_properties_dict["lat_precision"]-1)+"1")))
+                lon_start.append(curr_lon)
+                lon_stop.append(curr_lon+\
+                (self._data_properties_dict["delta_lon"]-float("0."+"0"*(self._data_properties_dict["lon_precision"]-1)+"1")))
+                curr_lon += self._data_properties_dict["delta_lon"]
             curr_lat += self._data_properties_dict["delta_lat"]
-            curr_lon += self._data_properties_dict["delta_lon"]
-        # constructing lat/lon component of datset DF
+            curr_lon = self._data_properties_dict["min_lon"]
+
         type_col_ = [set() for _ in xrange(len(lat_start))]
-        lat_lon_data = {"Latitude_start":lat_start, "Latitude_stop":lat_stop, "Longitude_start":lon_start,
-                        "Longitude_stop":lon_stop, "Event_type":type_col_}
-        df_header = pd.DataFrame.from_dict(lat_lon_data)
-        df_header.index.name = "index"
-        self._indexmap = df_header.loc[:, df_header.columns != 'Event_type']
+
+        grid_df = pd.DataFrame.from_dict({"Event_type": type_col_, "Latitude_start":lat_start, "Latitude_stop":lat_stop, \
+        "Longitude_start":lon_start, "Longitude_stop":lon_stop})
+        grid_df.index.name = "gridsquare_id"
+
+        self._indexmap = grid_df.loc[:, grid_df.columns != 'Event_type']
+
         # create date columns of dataset DF
         daterange = pd.date_range(self._data_properties_dict["min_date"], self._data_properties_dict["max_date"])
         self._data_properties_dict["daterange"] = [x.date() for x in daterange.tolist()]
         zeros = np.zeros(shape=(len(lat_start), len(self._data_properties_dict["daterange"])))
         ts_df = pd.DataFrame(zeros, columns=self._data_properties_dict["daterange"], dtype=int)
+
         self._dataset_df = pd.concat([df_header, ts_df], axis=1)
-        print(self._dataset_df)
 
         # now have to loop through raw data_frame to create dataset_df
-        for row in self._data_properties_dict["to_preproc_df"].itertuples(index=True, name="Pandas"):
-            curr_date = row[1].date()
-            curr_lat, curr_lon = row[3], row[4]
-            event_type = str(row[2])
-            for dataset_row in self._dataset_df.itertuples(index=True, name="Pandas"):
-                lat_lb, lat_ub = dataset_row[3], dataset_row[4]
-                lon_lb, lon_ub = dataset_row[5], dataset_row[6]
-                if lat_lb <= curr_lat <= lat_ub and lon_lb <= curr_lon <= lon_ub:
-                    self._dataset_df.loc[dataset_row[0], curr_date] = 1
-                    self._dataset_df.loc[dataset_row[0], "Event_type"].add(event_type)
-                    break
+        for dataset_row in self._dataset_df.itertuples(index=True, name="Pandas"):
+            lat_lb, lat_ub = dataset_row[2], dataset_row[3]
+            lon_lb, lon_ub = dataset_row[4], dataset_row[5]
 
+            match = self._data_properties_dict["to_preproc_df"].loc[\
+            (self._data_properties_dict["to_preproc_df"][lat_col] >= lat_lb) &\
+            (self._data_properties_dict["to_preproc_df"][lat_col] =< lat_ub) &\
+            (self._data_properties_dict["to_preproc_df"][lon_col] >= lon_lb) &\
+            (self._data_properties_dict["to_preproc_df"][lon_col] =< lon_ub)]
+
+            self._dataset_df.at[dataset_row[0], "Event_type"] = set(match[type_col].unique())
+            # now have to loop through match dataset to update timeseries
+            for match_row in match.itertuples(index=True, name="Pandas"):
+                self._dataset_df.at[dataset_row[0], match[date_col].date()] = 1
+
+        df = deepcopy(self._dataset_df)
+        df["sum_1"] = df.apply(lambda row: sum(row[:] == 0), axis = 1)
+        Print("All entries of preproc_df are in df['sum_!'].sum() == self._data_properties_dict["to_preproc_df"].shape[0]
         return self._dataset_df
 
 
